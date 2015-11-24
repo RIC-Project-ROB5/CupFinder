@@ -4,7 +4,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6.0)
 
 # The name of the project. (EDIT THIS)
-PROJECT(RIC portfolio)
+PROJECT(RIC_portfolio)
 
 # Used to resolve absolute path names
 SET(ROOT ${CMAKE_CURRENT_SOURCE_DIR})
@@ -30,7 +30,12 @@ SET( CMAKE_CXX_FLAGS  "	-std=c++14 		\
 " )
 
 set (HEADER_DIR "${ROOT}/headers")
-set (HEADER_FILES ${HEADER_DIR}/Image.hpp ${HEADER_DIR}/macros.hpp ${HEADER_DIR}/Map.hpp ${HEADER_DIR}/PPMLoader.hpp ${HEADER_DIR}/point.hpp)
+set (HEADER_FILES ${HEADER_DIR}/Image.hpp)
+set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/CupCollector.hpp)
+set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/macros.hpp)
+set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/Map.hpp)
+set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/point.hpp)
+set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/PPMLoader.hpp)
 
 include_directories(${HEADER_DIR})
 
