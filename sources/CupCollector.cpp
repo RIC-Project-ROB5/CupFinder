@@ -79,7 +79,7 @@ point CupCollector::FindNextPointOnLine(const vector2D &line) const
 {
     //check all 8 directions collect the ones which are closer to the endpoint of the line
     // to the endpoint of the linethan the current.
-    point closestpoint = {0, 0};
+    point closestpoint(-1, -1);
     float curdistance = current_point.GetDistance(line.getEndPoint());
     float mindistance = std::numeric_limits<float>::infinity();
     for(uint8_t i = 0; i < sizeof(neighbours) / sizeof(neighbours[i]); i++)
@@ -97,6 +97,7 @@ point CupCollector::FindNextPointOnLine(const vector2D &line) const
             }
         }
     }
+    assert(closestpoint != point(-1, -1) );
     return closestpoint;
 }
 

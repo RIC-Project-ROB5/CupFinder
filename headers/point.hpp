@@ -17,7 +17,8 @@ class point
   {
     return {p.x + this->x, p.y + this->y};
   }
-
+  point(int _x, int _y) { x = _x; y = _y; }
+  point() {};
   float GetDistance(const point &p) const;
   static float GetDistance(const point p1, const point p2);
   bool isNeighbour(const point &p);
