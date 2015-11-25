@@ -7,7 +7,11 @@ static point neighbours[] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {-1, -1}, {1, 1},
 CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map)
 {
     //Convert image into mapspace map of the workspace
+    CreateWorkspaceMap(map);
+
     //convert workspace into configurationspace
+    configurationspace = workspace; //just set them as equal for now.
+
     //Do cell decomposition, create waypoints and cells.
     //Connect the waypoints and cells into a graph
 
@@ -18,12 +22,47 @@ CupCollector::~CupCollector()
     //Do cleanup
 }
 
+void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
+{
+    int channel = 0; //the map is grayscale, so channel is 0
+    for(uint32_t x = 0; x < map->getWidth(); x++)
+    {
+        std::vector<mapSpace> y_line; //Contains a single line on the y-axis
+        for(uint32_t y = 0; y < map->getHeight(); y++)
+        {
+            mapSpace pixeltype;
+            switch(map->getPixelValuei(x, y, channel))
+            {
+                case 0: case 128: case 129: case 130: case 131: case 132:
+                    pixeltype = mapSpace::obstacle;
+                    break;
+                case 100:
+                    pixeltype = mapSpace::dropoff;
+                    break;
+                case 150:
+                    pixeltype = mapSpace::cup;
+                    break;
+                default:
+                    pixeltype = mapSpace::freespace;
+                    break;
+            }
+            y_line.push_back(pixeltype);
+        }
+        workspace.push_back(y_line);
+    }
+}
+
 void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint, __attribute__((unused))const Waypoint &endpoint, __attribute__((unused))Cell &cell)
 {   //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
 
-    //First, find out if we have entered the room from the top, bottom, left or right
+    //Find the nearest corner
 
+    //Go to that, find out which direction we are going.
+
+    //Cover the cell in a shrinking spiral pattern, untill we get to the middle. For each round, define a new "smaller" cell to cover the next time
+
+    //Go to the endpoint.
 }
 
 void CupCollector::WalkLine(vector2D const &line)
@@ -46,7 +85,7 @@ point CupCollector::FindNextPointOnLine(const vector2D &line) const
     for(uint8_t i = 0; i < sizeof(neighbours) / sizeof(neighbours[i]); i++)
     {
         point this_point = current_point + neighbours[i];
-        if(IsOutsideMap(this_point)) continue;
+        if(IsOutsideMap(this_point) || IsObstacle(this_point)) continue;
 
         if(this_point.GetDistance(line.getEndPoint()) <= curdistance)
         {   //select the wanted point as the one closest to the straight line to end.
@@ -64,6 +103,13 @@ point CupCollector::FindNextPointOnLine(const vector2D &line) const
 bool CupCollector::IsOutsideMap(const point &p) const
 {
     if(p.y < 0 || p.x < 0 || p.y > size_y || p.x > size_x)
+        return true;
+    return false;
+}
+
+bool CupCollector::IsObstacle(const point &p) const
+{
+    if(configurationspace[p.x][p.y] == mapSpace::obstacle)
         return true;
     return false;
 }

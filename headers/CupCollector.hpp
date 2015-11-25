@@ -61,6 +61,8 @@ class CupCollector
         void WalkLine(vector2D const &line);
         point FindNextPointOnLine(const vector2D &line) const;
         bool IsOutsideMap(const point &p) const;
+        void CreateWorkspaceMap(rw::sensor::Image* map);
+        bool IsObstacle(const point &p) const;
 
     private: //private objects/variables
         int32_t size_x; //size of the map (x axis)
