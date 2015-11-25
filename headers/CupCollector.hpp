@@ -2,8 +2,15 @@
 #include "point.hpp"
 #include "Image.hpp"
 #include "Map.hpp"
+#include "vector2D.hpp"
 #include <vector>
 #include <list>
+
+#define PIXEL_PER_METER 10
+#define ROB_RADIUS  (0.4 * PIXEL_PER_METER)
+#define ROB_VIEW_RANGE (2 * PIXEL_PER_METER)
+#define ROB_PICKUP_RANGE (1 * PIXEL_PER_METER)
+#define MAX_CUPS 20
 
 //Forward declare structs and classes
 struct Cell;
@@ -23,6 +30,7 @@ struct Cell
 struct Waypoint
 {
     //list of connections to other cells
+    point position;
     std::list<Waypoint_connection> connections;
 };
 
@@ -38,15 +46,28 @@ Class for the robot collecting cups
 */
 class CupCollector
 {
-    public:
+    private: //private functions
+
+    public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
 
         CupCollector(rw::sensor::Image *map);
         ~CupCollector();
 
-    private:
-        point currentpoint;
+        //Searches the given cell for cups, collects them, return them to dropoff
+        //Start at startpoint and exit at endpoint.
+        void SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
+        void WalkLine(vector2D const &line);
+        point FindNextPointOnLine(const vector2D &line) const;
+        bool IsOutsideMap(const point &p) const;
+
+    private: //private objects/variables
+        int32_t size_x; //size of the map (x axis)
+        int32_t size_y; //size of the map (y axis)
+        uint32_t current_cups = 0; //number of cups the robot currently holds.
+        uint32_t total_cups = 0;
+        point current_point; //point where the robot is right now
         std::vector<point> move_path;
         std::vector< std::vector< mapSpace> > workspace;
         std::vector< std::vector< mapSpace> > configurationspace;

@@ -36,6 +36,7 @@ set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/macros.hpp)
 set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/Map.hpp)
 set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/point.hpp)
 set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/PPMLoader.hpp)
+set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/vector2D.hpp)
 
 include_directories(${HEADER_DIR})
 
