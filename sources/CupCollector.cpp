@@ -114,3 +114,10 @@ bool CupCollector::IsObstacle(const point &p) const
         return true;
     return false;
 }
+
+void CreateConfigurationspaceMap(const std::vector< std::vector< mapSpace> > inWorkspace)
+// Creates a configurationspace map from input workspace map
+// Saves configurationspace map as private variable configurationspace
+{
+
+}

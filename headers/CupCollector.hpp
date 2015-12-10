@@ -63,7 +63,8 @@ class CupCollector
         bool IsOutsideMap(const point &p) const;
         void CreateWorkspaceMap(rw::sensor::Image* map);
         bool IsObstacle(const point &p) const;
-
+        void CreateConfigurationspaceMap(const std::vector< std::vector< mapSpace> > inWorkspace);
+        
     private: //private objects/variables
         int32_t size_x; //size of the map (x axis)
         int32_t size_y; //size of the map (y axis)
