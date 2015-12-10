@@ -14,7 +14,7 @@ SET(ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 #Wanted to add more error flags, but Image.cpp throw warnings with -pedantic and -Wunused-variable
-SET( CMAKE_CXX_FLAGS  "	-std=c++14 		\
+SET( CMAKE_CXX_FLAGS  "	-std=c++11 		\
 		 	-Wall 			\
 			-Wextra 		\
 			-Wshadow 		\
@@ -41,5 +41,3 @@ set (HEADER_FILES ${HEADER_FILES} ${HEADER_DIR}/vector2D.hpp)
 include_directories(${HEADER_DIR})
 
 add_subdirectory("sources")
-
-
