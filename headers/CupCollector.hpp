@@ -62,7 +62,10 @@ class CupCollector
         point FindNextPointOnLine(const vector2D &line) const;
         bool IsOutsideMap(const point &p) const;
         void CreateWorkspaceMap(rw::sensor::Image* map);
-        bool IsObstacle(const point &p) const;
+        bool IsObstacleWS(const point &p) const;
+        bool IsObstacleCS(const point &p) const;
+        void CreateConfigurationspaceMap();
+        void ExpandPixel(const point p);
 
     private: //private objects/variables
         int32_t size_x; //size of the map (x axis)
@@ -74,4 +77,5 @@ class CupCollector
         std::vector< std::vector< mapSpace> > workspace;
         std::vector< std::vector< mapSpace> > configurationspace;
         Waypoint *dropoffs[2] = {nullptr, nullptr};
+        bool debug = true;
 };

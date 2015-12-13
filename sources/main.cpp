@@ -21,6 +21,7 @@ int main(int argc, char const *argv[]) {
     //Find the cups
     cout << "Finding cups" << endl;
     CupCollector CCollector(map);
+    cout << "Done finding cups" << endl;
 
     //clean up
     delete map;
