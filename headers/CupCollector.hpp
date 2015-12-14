@@ -1,6 +1,7 @@
 #pragma once
 #include "point.hpp"
 #include "Image.hpp"
+// #include "PPMLoader.hpp"
 #include "Map.hpp"
 #include "vector2D.hpp"
 #include <vector>
