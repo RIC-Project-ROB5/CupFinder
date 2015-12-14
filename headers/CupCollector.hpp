@@ -79,7 +79,7 @@ class CupCollector
 
         CupCollector(rw::sensor::Image *map, const point &inDropoff);
         ~CupCollector();
-
+        void SaveMaps(rw::sensor::Image* map);
 
     private:
         point current_point;
@@ -98,6 +98,5 @@ class CupCollector
         uint64_t **wavefront = nullptr; //the wavefront map
 
         bool debug = true;
-
 
 };
