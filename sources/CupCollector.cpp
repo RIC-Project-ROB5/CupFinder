@@ -3,16 +3,37 @@
 #include <cassert>
 
 using namespace std;
+using namespace rw::sensor;
 
 static point neighbours[] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {-1, -1}, {1, 1}, {1, -1}, {-1, 1}}; //the neighbours a cell have
+
+
 static point expand_points[] = {{1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {2, -2}, {2, -1}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {-1, 2}, {-2, 2}, {-2, -1}, {-2, 0}, {-2, -1}, {-2, -2}, {-1, -2}, {0, -2}, {1, -2}, {3, -3}, {3, -2}, {3, -1}, {3, 0}, {3, 1}, {3, 2}, {3, 3}, {2, 3}, {1, 3}, {0, 3}, {-1, 3}, {-2, 3}, {-3, 3}, {-3, 2}, {-3, 1}, {-3, 0}, {-3, -1}, {-3, -2}, {-3, -3}, {-2, -3}, {-1, -3}, {0, -3}, {1, -3}, {2, -3}, {4, -2}, {4, -1}, {4, 0}, {4, 1}, {4, 2}, {2, 4}, {1, 4}, {0, 4}, {-1, 4}, {-2, 4}, {-4, 2}, {-4, 1}, {-4, 0}, {-4, -1}, {-4, -2}, {-2, -4}, {-1, -4}, {0, -4}, {1, -4}, {2, -4}};   //68 points
 
 
 
-CupCollector::CupCollector(rw::sensor::Image* map, const point &inDropoff)
+RGB mapcolour(uint64_t value, uint64_t max)
+{ //map colours according to value and maxvalue
+  //the returned colour will be more red the closer it is to 0
+  //and more blue the closer it is to max.
+  //there are exeption however, if the value is 1, the returned colour will be black
+  //if value is 3, the returned colour will be green
+  //if value is 2  the colour will be dark green
+  if(value == 1) return {0, 0, 0};
+  if(value == 3) return {0, 255, 0};
+  if(value == 2) return {150, 255, 150};
+
+  RGB col;
+  col.r = 255 - (value * 255) / max;
+  col.g = 0 ;
+
+  col.b = (value * 255) / max;
+  return col;
+}
+
+
+CupCollector::CupCollector(Image* map)
 {
-    //Save dropoff point
-    dropoff = inDropoff;
     //Save image dimensions
     size_x = map->getWidth();
     size_y = map->getHeight();
@@ -31,7 +52,7 @@ CupCollector::CupCollector(rw::sensor::Image* map, const point &inDropoff)
 
     compute_wavefront();
     if (debug)
-        std::cout << "Wavefront from " << dropoff.x << ", " << dropoff.y << " created" << std::endl;
+        std::cout << "Wavefront from created" << std::endl;
 
     cellDecomposition();
 
@@ -210,7 +231,16 @@ void CupCollector::compute_wavefront()
   prepare_wavefront();
   auto expand_points_this = new std::vector<point>; //points to expand from in this run
   auto expand_points_next = new std::vector<point>; //points to expand from in the next run
-  expand_points_this->push_back(dropoff);  //start expansion from goal.
+
+  for(int32_t x = 0; x < size_x; x++)
+  {
+    for(int32_t y = 0; y < size_y; y++)
+    {
+        if(configurationspace[x][y] == mapSpace::dropoff)
+            expand_points_this->push_back(point(x, y));  //start expansion from all dropoff points.
+    }
+  }
+
   while(expand_points_this->size())
   {
     for( auto this_point : *expand_points_this) //run through all the points
@@ -245,7 +275,6 @@ void CupCollector::prepare_wavefront()
       setDistance({x, y}, (uint64_t)configurationspace[x][y]);
     }
   }
-  setDistance(dropoff, 2); //set goal
 }
 
 void CupCollector::check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next)
@@ -362,7 +391,7 @@ void CupCollector::graphConnecting(){
 	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
 }
 
-void CupCollector::SaveMaps(rw::sensor::Image* map) {
+void CupCollector::SaveMaps(Image* map) {
     int value;
 
     //Save workspace
@@ -392,34 +421,26 @@ void CupCollector::SaveMaps(rw::sensor::Image* map) {
     map->saveAsPGM("configurationspace.pgm");
 
     //Save wavefront
-    for (int32_t x = 0; x < size_x; x++) {
-        for (int32_t y = 0; y < size_y; y++) {
-            if (wavefront[x][y] == 0) {
-                value = 255;
-            } else {
-                value = wavefront[x][y] % 255;;
-            }
-            map->setPixel8U(x, y, value);
-        }
+    Image wavefront_img(map->getWidth(), map->getHeight(), Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the wavefront
+
+    //First, find the max wavefront value
+    uint64_t max = 0;
+    for(unsigned int x = 0; x < wavefront_img.getWidth(); x++)
+    {
+      for(unsigned int y = 0; y < wavefront_img.getHeight(); y++)
+      {
+        if(getDistance({(int)x, (int)y}) > max)
+          max = getDistance({(int)x, (int)y});
+      }
     }
-    if (true) { //Create white circle around dropoff
-        value = 255;
-        map->setPixel8U(dropoff.x, dropoff.y-3, value);
-        map->setPixel8U(dropoff.x+1, dropoff.y-3, value);
-        map->setPixel8U(dropoff.x+2, dropoff.y-2, value);
-        map->setPixel8U(dropoff.x+3, dropoff.y-1, value);
-        map->setPixel8U(dropoff.x+3, dropoff.y, value);
-        map->setPixel8U(dropoff.x+3, dropoff.y+1, value);
-        map->setPixel8U(dropoff.x+2, dropoff.y+2, value);
-        map->setPixel8U(dropoff.x+1, dropoff.y+3, value);
-        map->setPixel8U(dropoff.x, dropoff.y+3, value);
-        map->setPixel8U(dropoff.x-1, dropoff.y+3, value);
-        map->setPixel8U(dropoff.x-2, dropoff.y+2, value);
-        map->setPixel8U(dropoff.x-3, dropoff.y+1, value);
-        map->setPixel8U(dropoff.x-3, dropoff.y, value);
-        map->setPixel8U(dropoff.x-3, dropoff.y-1, value);
-        map->setPixel8U(dropoff.x-2, dropoff.y-2, value);
-        map->setPixel8U(dropoff.x-1, dropoff.y-3, value);
+    //map the colours
+    for(unsigned int x = 0; x < wavefront_img.getWidth(); x++)
+    {
+      for(unsigned int y = 0; y < wavefront_img.getHeight(); y++)
+      {
+        auto col = mapcolour(getDistance({(int)x, (int)y}), max);
+        wavefront_img.setPixel8U(x, y, col.r, col.g, col.b);
+      }
     }
-    map->saveAsPGM("wavefront.pgm");
+    wavefront_img.saveAsPPM("wavefront.ppm");
 }

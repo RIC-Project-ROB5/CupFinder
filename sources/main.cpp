@@ -20,10 +20,9 @@ int main(int argc, char const *argv[]) {
     string filename(argv[1]);
     cout << "Loading image" << endl;
     Image *map = PPMLoader::load(filename);
-    point dropoff(2635, 1305); //A point inside the 'old' canteen at TEK
     //Find the cups
     cout << "Finding cups" << endl;
-    CupCollector CCollector(map, dropoff);
+    CupCollector CCollector(map);
     cout << "Done finding cups" << endl;
 
     //clean up

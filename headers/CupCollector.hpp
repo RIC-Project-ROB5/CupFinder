@@ -17,7 +17,16 @@
 struct Cell;
 struct Waypoint_connection;
 struct WayPoint;
+struct RGB;
 class CupCollector;
+
+RGB mapcolour(uint64_t value, uint64_t max);
+
+
+struct RGB
+{
+  uint8_t r, g, b;
+};
 
 struct Cell
 {
@@ -77,7 +86,7 @@ class CupCollector
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
 
-        CupCollector(rw::sensor::Image *map, const point &inDropoff);
+        CupCollector(rw::sensor::Image *map);
         ~CupCollector();
         void SaveMaps(rw::sensor::Image* map);
 
@@ -93,8 +102,6 @@ class CupCollector
         std::vector< Cell > cells;
         std::vector< Waypoint > wayPoints;
 
-        Waypoint *dropoffs[2] = {nullptr, nullptr};
-        point dropoff;
         uint64_t **wavefront = nullptr; //the wavefront map
 
         bool debug = true;
