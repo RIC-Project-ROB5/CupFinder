@@ -323,4 +323,24 @@ void CupCollector::SaveMaps(rw::sensor::Image* map) {
         map->setPixel8U(dropoff.x-1, dropoff.y-3, value);
     }
     map->saveAsPGM("wavefront.pgm");
+
+    /* RGB part - NOT WORKING
+    rw::sensor::Image wavefront_img(size_x, size_y, rw::sensor::Image::ColorCode::RGB, rw::sensor::Image::PixelDepth::Depth8U);
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            if (wavefront[x][y] == 0) {
+                valueR = 255;
+                valueG = 255;
+                valueB = 255;
+            } else { //Simple color
+                valueR = wavefront[x][y] % 255;
+                valueG = (wavefront[x][y]/255)%255;
+                valueB = ((wavefront[x][y]/255)/255)%255;
+                //value = wavefront[x][y] % 255;
+            }
+            wavefront_img.setPixel8U(x, y, valueR, valueG, valueB);
+        }
+    }
+    map->saveAsPPM("wavefront.ppm");
+    */
 }
