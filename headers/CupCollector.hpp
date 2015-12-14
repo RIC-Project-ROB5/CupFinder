@@ -78,6 +78,7 @@ class CupCollector
         bool IsObstacleCS(const point &p) const;
         void CreateConfigurationspaceMap();
         void compute_wavefront(); //(pre)computes the wavefront
+        void SaveMaps(rw::sensor::Image* map);
 
     private: //private objects/variables
         int32_t size_x; //size of the map (x axis)

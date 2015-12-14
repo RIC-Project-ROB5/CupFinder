@@ -34,6 +34,11 @@ CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map, const 
     //Do cell decomposition, create waypoints and cells.
     //Connect the waypoints and cells into a graph
 
+    //Create output image
+    SaveMaps(map);
+    if (debug)
+        std::cout << "Maps have been saved" << std::endl;
+
 }
 
 CupCollector::~CupCollector()
@@ -256,4 +261,66 @@ void CupCollector::check_neighbour(const point &this_point, const point &neighbo
     setDistance(neighbour, getDistance(this_point) + 1);
     expand_points_next.push_back(neighbour);
   }
+}
+
+void CupCollector::SaveMaps(rw::sensor::Image* map) {
+    int value;
+
+    //Save workspace
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            if (workspace[x][y] == 1) {
+                value = 0;
+            } else {
+                value = 255-workspace[x][y];
+            }
+            map->setPixel8U(x, y, value);
+        }
+    }
+    map->saveAsPGM("workspace.pgm");
+
+    //Save configurationspace
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            if (configurationspace[x][y] == 1) {
+                value = 0;
+            } else {
+                value = 255-configurationspace[x][y];
+            }
+            map->setPixel8U(x, y, value);
+        }
+    }
+    map->saveAsPGM("configurationspace.pgm");
+
+    //Save wavefront
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            if (wavefront[x][y] == 0) {
+                value = 255;
+            } else {
+                value = wavefront[x][y] % 255;;
+            }
+            map->setPixel8U(x, y, value);
+        }
+    }
+    if (true) { //Create white circle around dropoff
+        value = 255;
+        map->setPixel8U(dropoff.x, dropoff.y-3, value);
+        map->setPixel8U(dropoff.x+1, dropoff.y-3, value);
+        map->setPixel8U(dropoff.x+2, dropoff.y-2, value);
+        map->setPixel8U(dropoff.x+3, dropoff.y-1, value);
+        map->setPixel8U(dropoff.x+3, dropoff.y, value);
+        map->setPixel8U(dropoff.x+3, dropoff.y+1, value);
+        map->setPixel8U(dropoff.x+2, dropoff.y+2, value);
+        map->setPixel8U(dropoff.x+1, dropoff.y+3, value);
+        map->setPixel8U(dropoff.x, dropoff.y+3, value);
+        map->setPixel8U(dropoff.x-1, dropoff.y+3, value);
+        map->setPixel8U(dropoff.x-2, dropoff.y+2, value);
+        map->setPixel8U(dropoff.x-3, dropoff.y+1, value);
+        map->setPixel8U(dropoff.x-3, dropoff.y, value);
+        map->setPixel8U(dropoff.x-3, dropoff.y-1, value);
+        map->setPixel8U(dropoff.x-2, dropoff.y-2, value);
+        map->setPixel8U(dropoff.x-1, dropoff.y-3, value);
+    }
+    map->saveAsPGM("wavefront.pgm");
 }
