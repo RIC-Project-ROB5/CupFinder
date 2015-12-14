@@ -171,7 +171,7 @@ void CupCollector::CreateConfigurationspaceMap()
 
 void CupCollector::ExpandPixel(const point p)
 {
-    if (p.x+4 < size_x and p.x-4 >= 0 and p.y+4 < size_y and p.y-4 >= 0)
+    if (!IsOutsideMap(p))
         for (size_t i = 0; i < 68; i++)
             configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = mapSpace::obstacle;
     else
