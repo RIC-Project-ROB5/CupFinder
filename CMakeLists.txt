@@ -27,6 +27,7 @@ SET( CMAKE_CXX_FLAGS  "	-std=c++11 		\
 			-pedantic		\
 			-Wunused-variable	\
 			-g			\
+			-Ofast			\
 " )
 
 set (HEADER_DIR "${ROOT}/headers")

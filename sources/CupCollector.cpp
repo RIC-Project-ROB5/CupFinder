@@ -21,7 +21,7 @@ RGB mapcolour(uint64_t value, uint64_t max)
   //if value is 2  the colour will be dark green
   if(value == 1) return {0, 0, 0};
   if(value == 3) return {0, 255, 0};
-  if(value == 2) return {150, 255, 150};
+  if(value == 2) return {100, 255, 100};
 
   RGB col;
   col.r = 255 - (value * 255) / max;
@@ -52,14 +52,14 @@ CupCollector::CupCollector(Image* map)
 
     compute_wavefront();
     if (debug)
-        std::cout << "Wavefront from created" << std::endl;
+        std::cout << "Wavefront created" << std::endl;
 
     cellDecomposition();
 
 	graphConnecting();
 
     //Create output image
-    SaveMaps(map);
+    SaveMaps();
     if (debug)
         std::cout << "Maps have been saved" << std::endl;
 
@@ -81,6 +81,7 @@ CupCollector::~CupCollector()
 
 void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
 {
+    int cups = 0;
     int channel = 0; //the map is grayscale, so channel is 0
     for(uint32_t x = 0; x < map->getWidth(); x++)
     {
@@ -91,22 +92,24 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
             switch(map->getPixelValuei(x, y, channel))
             {
                 case 0: case 128: case 129: case 130: case 131: case 132:
-                    pixeltype = mapSpace::obstacle;
+                    pixeltype = obstacle;
                     break;
                 case 100:
-                    pixeltype = mapSpace::dropoff;
+                    pixeltype = dropoff;
                     break;
                 case 150:
-                    pixeltype = mapSpace::cup;
+                    pixeltype = cup;
+                    cups++;
                     break;
                 default:
-                    pixeltype = mapSpace::freespace;
+                    pixeltype = freespace;
                     break;
             }
             y_line.push_back(pixeltype);
         }
         workspace.push_back(y_line);
     }
+    std::cout << cups << std::endl;
 }
 
 
@@ -123,26 +126,35 @@ void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint,
     //Go to the endpoint.
 }
 
-void CupCollector::WalkLine(vector2D const &line)
+std::vector<point> CupCollector::WalkLine(vector2D const &line) const
 {   //Walk along the line from startpoint to endpoint
     //There should be a clear path, e.g. no obstacles.
-    while(current_point != line.getEndPoint())
+    std::cout << line.getStartPoint().x << ", " << line.getStartPoint().x << "]-[" <<
+    line.getEndPoint().x << "," << line.getEndPoint().y << std::endl;
+    std::vector<point> line_points;
+    point cur = line.getStartPoint();
+    line_points.push_back(cur);
+    while(cur != line.getEndPoint())
     {
-        point next_point = FindNextPointOnLine(line);
-        current_point = next_point;
+        point next_point = FindNextPointOnLine(line, cur);
+        cur = next_point;
+        std::cout << cur.x << " " << cur.y << std::endl;
+        line_points.push_back(cur);
+        if(line_points.size() > 100) exit(0);
     }
+    return line_points;
 }
 
-point CupCollector::FindNextPointOnLine(const vector2D &line) const
+point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur) const
 {
     //check all 8 directions collect the ones which are closer to the endpoint of the line
     // to the endpoint of the linethan the current.
     point closestpoint(-1, -1);
-    float curdistance = current_point.GetDistance(line.getEndPoint());
+    float curdistance = cur.GetDistance(line.getEndPoint());
     float mindistance = std::numeric_limits<float>::infinity();
     for(uint8_t i = 0; i < sizeof(neighbours) / sizeof(neighbours[i]); i++)
     {
-        point this_point = current_point + neighbours[i];
+        point this_point = cur + neighbours[i];
         if(IsOutsideMap(this_point) || IsObstacleCS(this_point)) continue;
 
         if(this_point.GetDistance(line.getEndPoint()) <= curdistance)
@@ -168,14 +180,14 @@ bool CupCollector::IsOutsideMap(const point &p) const
 
 bool CupCollector::IsObstacleWS(const point &p) const
 {
-    if(workspace[p.x][p.y] == mapSpace::obstacle)
+    if(workspace[p.x][p.y] == obstacle)
         return true;
     return false;
 }
 
 bool CupCollector::IsObstacleCS(const point &p) const
 {
-    if(configurationspace[p.x][p.y] == mapSpace::obstacle)
+    if(configurationspace[p.x][p.y] == obstacle)
         return true;
     return false;
 }
@@ -188,7 +200,7 @@ void CupCollector::CreateConfigurationspaceMap()
     std::vector< point > obstacles_unfiltered;
     for (int32_t x = 0; x < size_x; x++) {
       for (int32_t y = 0; y < size_y; y++) {
-        if (workspace[x][y] == mapSpace::obstacle)
+        if (workspace[x][y] == obstacle)
           obstacles_unfiltered.push_back(point(x,y));
       }
     }
@@ -219,11 +231,11 @@ void CupCollector::ExpandPixel(const point p)
 {
     if (!IsOutsideMap(p))
         for (size_t i = 0; i < 68; i++)
-            configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = mapSpace::obstacle;
+            configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = obstacle;
     else
         for (size_t i = 0; i < 68; i++)
             if (p.x+expand_points[i].x < size_x and p.x-expand_points[i].x >= 0 and p.y+expand_points[i].y < size_y and p.y-expand_points[i].y >= 0)
-                configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = mapSpace::obstacle;
+                configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = obstacle;
 }
 
 void CupCollector::compute_wavefront()
@@ -236,7 +248,7 @@ void CupCollector::compute_wavefront()
   {
     for(int32_t y = 0; y < size_y; y++)
     {
-        if(configurationspace[x][y] == mapSpace::dropoff)
+        if(configurationspace[x][y] == dropoff)
             expand_points_this->push_back(point(x, y));  //start expansion from all dropoff points.
     }
   }
@@ -391,37 +403,127 @@ void CupCollector::graphConnecting(){
 	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
 }
 
-void CupCollector::SaveMaps(Image* map) {
-    int value;
 
+void CupCollector::SaveWorkspaceMap(std::string name)
+{
+    Image workspace_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
     //Save workspace
     for (int32_t x = 0; x < size_x; x++) {
         for (int32_t y = 0; y < size_y; y++) {
-            if (workspace[x][y] == 1) {
-                value = 0;
-            } else {
-                value = 255-workspace[x][y];
+            RGB col = {0, 0, 0};
+            switch(workspace[x][y])
+            {
+                case freespace:
+                    col = {255, 255, 255};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case dropoff:
+                    col = {0, 255, 0};
+                    break;
+                case cup:
+                    col = {100, 255, 100};
+                    break;
+                default:
+                    assert(false);
             }
-            map->setPixel8U(x, y, value);
+            workspace_img.setPixel8U(x, y, col.r, col.g, col.b);
         }
     }
-    map->saveAsPGM("workspace.pgm");
+    workspace_img.saveAsPPM(name);
 
+}
+
+void CupCollector::SaveConfigurationspaceMap(std::string name)
+{
     //Save configurationspace
+    Image configurationspace_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
+
     for (int32_t x = 0; x < size_x; x++) {
         for (int32_t y = 0; y < size_y; y++) {
-            if (configurationspace[x][y] == 1) {
-                value = 0;
-            } else {
-                value = 255-configurationspace[x][y];
+            RGB col = {0, 0, 0};
+            switch(configurationspace[x][y])
+            {
+                case freespace:
+                    col = {255, 255, 255};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case dropoff:
+                    col = {0, 255, 0};
+                    break;
+                case cup:
+                    col = {100, 255, 100};
+                    break;
+                default:
+                    assert(false);
             }
-            map->setPixel8U(x, y, value);
+            configurationspace_img.setPixel8U(x, y, col.r, col.g, col.b);
         }
     }
-    map->saveAsPGM("configurationspace.pgm");
+    configurationspace_img.saveAsPPM(name);
 
+}
+
+void CupCollector::SaveWaypointMap(__attribute__((unused))std::string name)
+{
+    //same as configuration space
+    Image waypoints_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
+
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            RGB col = {0, 0, 0};
+            switch(configurationspace[x][y])
+            {
+                case freespace:
+                    col = {255, 255, 255};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case dropoff:
+                    col = {0, 255, 0};
+                    break;
+                case cup:
+                    col = {100, 255, 100};
+                    break;
+                default:
+                    assert(false);
+            }
+            waypoints_img.setPixel8U(x, y, col.r, col.g, col.b);
+        }
+    }
+    int i = 0;
+    for(auto &wp : wayPoints)
+    {
+        std::cout << "waypoint " << i++ << " Out of " << wayPoints.size() <<
+        " Got " << wp.connections.size() << " connections." << std::endl;
+        //put in waypoint
+        waypoints_img.setPixel8U(wp.coord.x, wp.coord.y, 255, 0, 0);
+        //put in connections
+        for(auto &con : wp.connections)
+        {
+            //create line
+            vector2D line(wp.coord, con.linkptr->coord);
+            std::cout << "[" << wp.coord.x << "," << wp.coord.y << "]";
+            std::cout << " --- ";
+            std::cout << "[" <<  con.linkptr->coord.x << "," << con.linkptr->coord.y << "]";
+            std::cout << std::endl;
+            //for(auto &p : WalkLine(line))
+            //{
+            //    waypoints_img.setPixel8U(p.x, p.y, 0, 0, 255);
+            //}
+        }
+    }
+    waypoints_img.saveAsPPM(name);
+}
+
+void CupCollector::SaveWavefrontMap(std::string name)
+{
     //Save wavefront
-    Image wavefront_img(map->getWidth(), map->getHeight(), Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the wavefront
+    Image wavefront_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the wavefront
 
     //First, find the max wavefront value
     uint64_t max = 0;
@@ -442,5 +544,15 @@ void CupCollector::SaveMaps(Image* map) {
         wavefront_img.setPixel8U(x, y, col.r, col.g, col.b);
       }
     }
-    wavefront_img.saveAsPPM("wavefront.ppm");
+    wavefront_img.saveAsPPM(name);
+
+}
+
+void CupCollector::SaveMaps() {
+
+    SaveWaypointMap("waypoints.ppm");
+    SaveWorkspaceMap("workspace.ppm");
+    SaveWavefrontMap("wavefront.ppm");
+    SaveConfigurationspaceMap("configurationspace.ppm");
+
 }
