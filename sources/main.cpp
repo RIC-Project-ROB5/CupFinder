@@ -6,6 +6,7 @@
 using namespace std;
 using namespace rw::loaders;
 using namespace rw::sensor;
+
 int main(int argc, char const *argv[]) {
     if(argc < 2)
     {

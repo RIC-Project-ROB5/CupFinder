@@ -1,4 +1,4 @@
-#include "../headers/point.hpp"
+#include "point.hpp"
 #include <cmath>
 
 float point::GetDistance(const point &p) const
