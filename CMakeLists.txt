@@ -1,7 +1,7 @@
 #
 # Test CMake version
 #
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0.0)
 
 # The name of the project. (EDIT THIS)
 PROJECT(RIC_portfolio)
