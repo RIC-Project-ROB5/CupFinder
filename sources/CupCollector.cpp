@@ -351,8 +351,14 @@ void CupCollector::cellDecomposition(){
 		}
 	}
 
-	//Do cell decomposition, create waypoints and cells.
-	//Connect the waypoints and cells into a graph
+	//remove all nonaccesible cells
+    auto tmpcells = cells;
+    cells.clear();
+    for( auto &cell : tmpcells)
+    {
+        if (getDistance(cell.lower_left) != freespace)
+            cells.push_back(cell);
+    }
 }
 
 void CupCollector::findWaypoints(size_t id){
@@ -498,8 +504,10 @@ void CupCollector::SaveWaypointMap(__attribute__((unused))std::string name)
     int i = 0;
     for(auto &wp : wayPoints)
     {
+        std::cout << std::endl;
         std::cout << "waypoint " << i++ << " Out of " << wayPoints.size() <<
-        " Got " << wp.connections.size() << " connections." << std::endl;
+        " Got " << wp.connections.size() << " connections." << " Coords are ["
+        <<wp.coord.x << "," << wp.coord.y << "]" << std::endl;
         //put in waypoint
         waypoints_img.setPixel8U(wp.coord.x, wp.coord.y, 255, 0, 0);
         //put in connections
@@ -507,10 +515,8 @@ void CupCollector::SaveWaypointMap(__attribute__((unused))std::string name)
         {
             //create line
             vector2D line(wp.coord, con.linkptr->coord);
-            std::cout << "[" << wp.coord.x << "," << wp.coord.y << "]";
-            std::cout << " --- ";
             std::cout << "[" <<  con.linkptr->coord.x << "," << con.linkptr->coord.y << "]";
-            std::cout << std::endl;
+            std::cout << "\tPointer address is: " << con.linkptr << std::endl;
             //for(auto &p : WalkLine(line))
             //{
             //    waypoints_img.setPixel8U(p.x, p.y, 0, 0, 255);
