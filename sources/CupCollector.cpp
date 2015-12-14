@@ -2,15 +2,17 @@
 #include <limits>
 #include <cassert>
 
+using namespace std;
 
 static point neighbours[] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {-1, -1}, {1, 1}, {1, -1}, {-1, 1}}; //the neighbours a cell have
 static point expand_points[] = {{1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {2, -2}, {2, -1}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {-1, 2}, {-2, 2}, {-2, -1}, {-2, 0}, {-2, -1}, {-2, -2}, {-1, -2}, {0, -2}, {1, -2}, {3, -3}, {3, -2}, {3, -1}, {3, 0}, {3, 1}, {3, 2}, {3, 3}, {2, 3}, {1, 3}, {0, 3}, {-1, 3}, {-2, 3}, {-3, 3}, {-3, 2}, {-3, 1}, {-3, 0}, {-3, -1}, {-3, -2}, {-3, -3}, {-2, -3}, {-1, -3}, {0, -3}, {1, -3}, {2, -3}, {4, -2}, {4, -1}, {4, 0}, {4, 1}, {4, 2}, {2, 4}, {1, 4}, {0, 4}, {-1, 4}, {-2, 4}, {-4, 2}, {-4, 1}, {-4, 0}, {-4, -1}, {-4, -2}, {-2, -4}, {-1, -4}, {0, -4}, {1, -4}, {2, -4}};   //68 points
 
-CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map, const point &inDropoff)
+
+
+CupCollector::CupCollector(rw::sensor::Image* map, const point &inDropoff)
 {
     //Save dropoff point
-    dropoff.x = inDropoff.x;
-    dropoff.y = inDropoff.y;
+    dropoff = inDropoff;
     //Save image dimensions
     size_x = map->getWidth();
     size_y = map->getHeight();
@@ -31,8 +33,9 @@ CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map, const 
     if (debug)
         std::cout << "Wavefront from " << dropoff.x << ", " << dropoff.y << " created" << std::endl;
 
-    //Do cell decomposition, create waypoints and cells.
-    //Connect the waypoints and cells into a graph
+    cellDecomposition();
+
+	graphConnecting();
 
     //Create output image
     SaveMaps(map);
@@ -53,6 +56,7 @@ CupCollector::~CupCollector()
         delete[] wavefront;
     }
 }
+
 
 void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
 {
@@ -83,6 +87,7 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
         workspace.push_back(y_line);
     }
 }
+
 
 void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint, __attribute__((unused))const Waypoint &endpoint, __attribute__((unused))Cell &cell)
 {   //Searches the given cell for cups, collects them, return them to dropoff
@@ -261,6 +266,100 @@ void CupCollector::check_neighbour(const point &this_point, const point &neighbo
     setDistance(neighbour, getDistance(this_point) + 1);
     expand_points_next.push_back(neighbour);
   }
+}
+
+void CupCollector::cellDecomposition(){
+
+	int prevPixel = obstacle;
+
+	for (size_t x = 0; x < configurationspace.size(); x++){
+		int yStart = 0;
+		int yEnd = 0;
+		for (size_t y = 0; y < configurationspace[x].size(); y++){
+
+			if (configurationspace[x][y] != obstacle && prevPixel == obstacle){
+
+				yStart = y;
+			}
+			else if (configurationspace[x][y] == obstacle && prevPixel != obstacle){
+
+				yEnd = y - 1;
+
+				bool cellMatch = false;
+
+				for (size_t i = 0; i < cells.size(); i++){
+					if (cells[i].upper_left.y == yStart && cells[i].lower_left.y == yEnd){
+						cellMatch = true;
+						cells[i].upper_right.x++;
+						cells[i].lower_right.x++;
+					}
+				}
+
+				if (!cellMatch){
+					Cell newCell;
+					newCell.upper_left = point(x, yStart);
+					newCell.lower_left = point(x, yEnd);
+					newCell.upper_right = point(x, yStart);
+					newCell.lower_right = point(x, yEnd);
+					newCell.searched = false;
+					cells.push_back(newCell);
+				}
+			}
+
+			prevPixel = configurationspace[x][y];
+		}
+	}
+
+	//Do cell decomposition, create waypoints and cells.
+	//Connect the waypoints and cells into a graph
+}
+
+void CupCollector::findWaypoints(size_t id){
+	vector<point> coord;
+	for (size_t i = 0; i < cells.size(); i++){
+		if (i == id) continue;
+		if ((cells[i].lower_right.x + 1 == cells[id].upper_left.x &&
+			(cells[i].lower_right.y > cells[id].upper_left.y &&
+			cells[i].upper_right.y < cells[id].lower_left.y))
+		) coord.push_back(point(cells[i].lower_right.x, (min(cells[i].lower_left.y, cells[id].lower_left.y) - max(cells[i].upper_left.y, cells[id].upper_left.y)) / 2 + max(cells[i].upper_left.y, cells[id].upper_left.y)));
+		else if ((cells[i].upper_left.x - 1 == cells[id].lower_right.x &&
+			(cells[i].lower_left.y > cells[id].upper_right.y &&
+			cells[i].upper_left.y < cells[id].lower_right.y))
+		) coord.push_back(point(cells[id].lower_right.x, (min(cells[i].lower_left.y, cells[id].lower_left.y) - max(cells[i].upper_left.y, cells[id].upper_left.y)) / 2 + max(cells[i].upper_left.y, cells[id].upper_left.y)));
+	}
+
+	vector<Waypoint*> waypointPtr;
+
+	for (size_t i = 0; i < coord.size(); i++){
+		bool match = false;
+		for (size_t j = 0; j < wayPoints.size(); j++){
+			if (coord[i] == wayPoints[j].coord){
+				waypointPtr.push_back(&wayPoints[j]);
+				match = true;
+				break;
+			}
+		}
+		if (!match){
+			Waypoint temp;
+			temp.coord = coord[i];
+			wayPoints.push_back(temp);
+			waypointPtr.push_back(&wayPoints[wayPoints.size() - 1]);
+		}
+	}
+
+	for (size_t i = 0; i < waypointPtr.size(); i++){
+		for (size_t j = 0; j < waypointPtr.size(); j++){
+			if (i == j) continue;
+			Waypoint_connection temp;
+			temp.linkptr = waypointPtr[j];
+			temp.connection_cell = &cells[id];
+			(*waypointPtr[i]).connections.push_back(temp);
+		}
+	}
+}
+
+void CupCollector::graphConnecting(){
+	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
 }
 
 void CupCollector::SaveMaps(rw::sensor::Image* map) {
