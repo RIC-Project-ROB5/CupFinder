@@ -1,5 +1,9 @@
 #include "CupCollector.hpp"
+#include <limits>
+#include <cassert>
 
+
+static point neighbours[] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {-1, -1}, {1, 1}, {1, -1}, {-1, 1}}; //the neighbours a cell have
 
 using namespace std;
 
@@ -121,10 +125,10 @@ void CupCollector::cellDecomposition(){
 
 	int prevPixel = obstacle;
 
-	for (int x = 0; x < configurationspace.size(); x++){
+	for (size_t x = 0; x < configurationspace.size(); x++){
 		int yStart = 0;
 		int yEnd = 0;
-		for (int y = 0; y < configurationspace[x].size(); y++){
+		for (size_t y = 0; y < configurationspace[x].size(); y++){
 
 			if (configurationspace[x][y] != obstacle && prevPixel == obstacle){
 
@@ -136,7 +140,7 @@ void CupCollector::cellDecomposition(){
 
 				bool cellMatch = false;
 
-				for (int i = 0; i < cells.size(); i++){
+				for (size_t i = 0; i < cells.size(); i++){
 					if (cells[i].upper_left.y == yStart && cells[i].lower_left.y == yEnd){
 						cellMatch = true;
 						cells[i].upper_right.x++;
@@ -163,9 +167,9 @@ void CupCollector::cellDecomposition(){
 	//Connect the waypoints and cells into a graph
 }
 
-void CupCollector::findWaypoints(int id){
+void CupCollector::findWaypoints(size_t id){
 	vector<point> coord;
-	for (int i = 0; i < cells.size(); i++){
+	for (size_t i = 0; i < cells.size(); i++){
 		if (i == id) continue;
 		if ((cells[i].lower_right.x + 1 == cells[id].upper_left.x &&
 			(cells[i].lower_right.y > cells[id].upper_left.y &&
@@ -179,9 +183,9 @@ void CupCollector::findWaypoints(int id){
 
 	vector<Waypoint*> waypointPtr;
 
-	for (int i = 0; i < coord.size(); i++){
+	for (size_t i = 0; i < coord.size(); i++){
 		bool match = false;
-		for (int j = 0; j < wayPoints.size(); j++){
+		for (size_t j = 0; j < wayPoints.size(); j++){
 			if (coord[i] == wayPoints[j].coord){
 				waypointPtr.push_back(&wayPoints[j]);
 				match = true;
@@ -196,8 +200,8 @@ void CupCollector::findWaypoints(int id){
 		}
 	}
 
-	for (int i = 0; i < waypointPtr.size(); i++){
-		for (int j = 0; j < waypointPtr.size(); j++){
+	for (size_t i = 0; i < waypointPtr.size(); i++){
+		for (size_t j = 0; j < waypointPtr.size(); j++){
 			if (i == j) continue;
 			Waypoint_connection temp;
 			temp.linkptr = waypointPtr[j];
@@ -208,5 +212,5 @@ void CupCollector::findWaypoints(int id){
 }
 
 void CupCollector::graphConnecting(){
-	for (int i = 0; i < cells.size(); i++) findWaypoints(i);
+	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
 }

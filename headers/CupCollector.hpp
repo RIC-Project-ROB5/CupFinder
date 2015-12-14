@@ -54,7 +54,7 @@ class CupCollector
 
 
     private:
-        point currentpoint;
+        point current_point;
         int32_t size_x; //size of the map (x axis)
         int32_t size_y; //size of the map (y axis)
         uint32_t current_cups = 0; //number of cups the robot currently holds.
@@ -75,6 +75,6 @@ class CupCollector
         bool IsObstacle(const point &p) const;
         void cellDecomposition();
         void graphConnecting();
-        void findWaypoints(int id);
+        void findWaypoints(size_t id);
         void findCells(int id);
 };
