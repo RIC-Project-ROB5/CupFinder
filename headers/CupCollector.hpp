@@ -5,6 +5,7 @@
 #include "vector2D.hpp"
 #include <vector>
 #include <list>
+#include <iostream>
 
 #define PIXEL_PER_METER 10
 #define ROB_RADIUS  (0.4 * PIXEL_PER_METER)
@@ -47,12 +48,23 @@ Class for the robot collecting cups
 class CupCollector
 {
     private: //private functions
+        void ExpandPixel(const point p);
+        void prepare_wavefront();
+        inline void setDistance(const point &p, const uint64_t value)
+        {
+            wavefront[p.x][p.y] = value;
+        }
+        void check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next);
+        inline uint64_t getDistance(const point &p) const
+        { //returns distance to goal
+            return wavefront[p.x][p.y];
+        }
 
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
 
-        CupCollector(rw::sensor::Image *map);
+        CupCollector(rw::sensor::Image *map, const point &inDropoff);
         ~CupCollector();
 
         //Searches the given cell for cups, collects them, return them to dropoff
@@ -65,7 +77,7 @@ class CupCollector
         bool IsObstacleWS(const point &p) const;
         bool IsObstacleCS(const point &p) const;
         void CreateConfigurationspaceMap();
-        void ExpandPixel(const point p);
+        void compute_wavefront(); //(pre)computes the wavefront
 
     private: //private objects/variables
         int32_t size_x; //size of the map (x axis)
@@ -77,5 +89,8 @@ class CupCollector
         std::vector< std::vector< mapSpace> > workspace;
         std::vector< std::vector< mapSpace> > configurationspace;
         Waypoint *dropoffs[2] = {nullptr, nullptr};
+        point dropoff;
+        uint64_t **wavefront = nullptr; //the wavefront map
+
         bool debug = true;
 };

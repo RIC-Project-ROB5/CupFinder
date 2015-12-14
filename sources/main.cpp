@@ -1,6 +1,7 @@
 #include "Image.hpp"
 #include "PPMLoader.hpp"
 #include "CupCollector.hpp"
+#include "point.hpp"
 #include <iostream>
 
 using namespace std;
@@ -18,9 +19,10 @@ int main(int argc, char const *argv[]) {
     string filename(argv[1]);
     cout << "Loading image" << endl;
     Image *map = PPMLoader::load(filename);
+    point dropoff(2635, 1305); //A point inside the 'old' canteen at TEK
     //Find the cups
     cout << "Finding cups" << endl;
-    CupCollector CCollector(map);
+    CupCollector CCollector(map, dropoff);
     cout << "Done finding cups" << endl;
 
     //clean up

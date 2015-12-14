@@ -1,13 +1,16 @@
 #include "CupCollector.hpp"
 #include <limits>
 #include <cassert>
-#include <iostream>
+
 
 static point neighbours[] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {-1, -1}, {1, 1}, {1, -1}, {-1, 1}}; //the neighbours a cell have
 static point expand_points[] = {{1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {2, -2}, {2, -1}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {-1, 2}, {-2, 2}, {-2, -1}, {-2, 0}, {-2, -1}, {-2, -2}, {-1, -2}, {0, -2}, {1, -2}, {3, -3}, {3, -2}, {3, -1}, {3, 0}, {3, 1}, {3, 2}, {3, 3}, {2, 3}, {1, 3}, {0, 3}, {-1, 3}, {-2, 3}, {-3, 3}, {-3, 2}, {-3, 1}, {-3, 0}, {-3, -1}, {-3, -2}, {-3, -3}, {-2, -3}, {-1, -3}, {0, -3}, {1, -3}, {2, -3}, {4, -2}, {4, -1}, {4, 0}, {4, 1}, {4, 2}, {2, 4}, {1, 4}, {0, 4}, {-1, 4}, {-2, 4}, {-4, 2}, {-4, 1}, {-4, 0}, {-4, -1}, {-4, -2}, {-2, -4}, {-1, -4}, {0, -4}, {1, -4}, {2, -4}};   //68 points
 
-CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map)
+CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map, const point &inDropoff)
 {
+    //Save dropoff point
+    dropoff.x = inDropoff.x;
+    dropoff.y = inDropoff.y;
     //Save image dimensions
     size_x = map->getWidth();
     size_y = map->getHeight();
@@ -24,6 +27,10 @@ CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map)
     if (debug)
         std::cout << "Configurationspace created" << std::endl;
 
+    compute_wavefront();
+    if (debug)
+        std::cout << "Wavefront from " << dropoff.x << ", " << dropoff.y << " created" << std::endl;
+
     //Do cell decomposition, create waypoints and cells.
     //Connect the waypoints and cells into a graph
 
@@ -31,7 +38,15 @@ CupCollector::CupCollector(__attribute__((unused))rw::sensor::Image* map)
 
 CupCollector::~CupCollector()
 {
-    //Do cleanup
+    //Deallocate the wavefront map
+    if(wavefront != nullptr)
+    {
+        for(long i = 0; i < size_x; i++)
+        {
+            delete[] wavefront[i];
+        }
+        delete[] wavefront;
+    }
 }
 
 void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
@@ -178,4 +193,67 @@ void CupCollector::ExpandPixel(const point p)
         for (size_t i = 0; i < 68; i++)
             if (p.x+expand_points[i].x < size_x and p.x-expand_points[i].x >= 0 and p.y+expand_points[i].y < size_y and p.y-expand_points[i].y >= 0)
                 configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = mapSpace::obstacle;
+}
+
+void CupCollector::compute_wavefront()
+{
+  prepare_wavefront();
+  auto expand_points_this = new std::vector<point>; //points to expand from in this run
+  auto expand_points_next = new std::vector<point>; //points to expand from in the next run
+  expand_points_this->push_back(dropoff);  //start expansion from goal.
+  while(expand_points_this->size())
+  {
+    for( auto this_point : *expand_points_this) //run through all the points
+    {
+      for(uint8_t i = 0; i < sizeof(neighbours) / sizeof(neighbours[i]); i++)
+        check_neighbour(this_point, this_point + neighbours[i], *expand_points_next);
+    }
+    //clear list of points to check, and switch to next list.
+    expand_points_this->clear();
+    std::swap(expand_points_this, expand_points_next);
+  }
+  delete expand_points_this;
+  delete expand_points_next;
+}
+
+void CupCollector::prepare_wavefront()
+{ //prepare wavefront structure for computations
+  //First allocate the required space
+  if(wavefront == nullptr)
+  {
+    wavefront = new uint64_t *[size_x];
+    for(long i = 0; i < size_x; i++)
+    {
+      wavefront[i] = new uint64_t[size_y];
+    }
+  }
+  //fill with initial values according to map (obstacles become 1, freespace 0)
+  for(int x = 0; x < size_x; x++)
+  {
+    for(int y = 0; y < size_y; y++)
+    {
+      setDistance({x, y}, (uint64_t)configurationspace[x][y]);
+    }
+  }
+  setDistance(dropoff, 2); //set goal
+}
+
+void CupCollector::check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next)
+{ //check if we should expand in to the given neighbour, and if so, add it
+  //to the list of points to check on next run.
+
+  //First check if we are out of bounds
+  if(neighbour.y < 0 || neighbour.y > size_y - 1 ||
+      neighbour.x < 0 || neighbour.x > size_x - 1)
+  {
+    return;
+  }
+  //only expand into point if value is either 0 or at least 2 larger than current value.
+  if(getDistance(neighbour) == 0 ||
+    getDistance(neighbour) > getDistance(this_point) + 1)
+  {
+    //set point to current value + 1
+    setDistance(neighbour, getDistance(this_point) + 1);
+    expand_points_next.push_back(neighbour);
+  }
 }
