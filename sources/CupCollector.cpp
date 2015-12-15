@@ -67,7 +67,11 @@ CupCollector::CupCollector(Image* map)
     if (debug)
         std::cout << "Wavefront created" << std::endl;
 
-    cellDecomposition();
+    prepareCellDecomposition();
+    Cell seedc;
+    seedc.upper_left = {2000, 1280};
+    seedc.lower_right = seedc.upper_left + point(0, 10);
+    cellDecomposition(seedc, cellid);
     //remove cells which the wavefront don't enter (this means the are not in the map)
     cleanCells();
 	graphConnecting();
@@ -333,6 +337,231 @@ void CupCollector::check_neighbour(const point &this_point, const point &neighbo
     setDistance(neighbour, getDistance(this_point) + 1);
     expand_points_next.push_back(neighbour);
   }
+}
+
+void CupCollector::cellDecomposition(Cell &seedcell, uint64_t id)
+{
+    //This algorithm performs celldecomposition in a rather special way:
+    //We start from a set of points, and try to expand out from these in a square-like shape.
+    //if we hid an obstacle on one of the sides we stop expanding this way.
+    //However, if not all of the side is obstacles, we start expanding a new cell from this.
+    //we only use upper_left and lower_right untill the end.
+
+    auto &up_l = seedcell.upper_left;
+    auto &lo_r = seedcell.lower_right;
+    //std::cout << up_l << "\t" << lo_r << std::endl;
+    //check if allready occupied
+    for(int x = up_l.x; x <= lo_r.x; x++)
+        for(int y = up_l.y; y <= lo_r.y ; y++)
+        {
+            if(cellDecompMap[x][y] != 0 && cellDecompMap[x][y] != id)
+            {
+                return;
+            }
+        }
+
+    bool expanded = false;
+    std::vector<Cell> expandcells;
+    //int i = 0;
+    do
+    {
+        //std::cout << i++ << std::endl;
+        //std::cout << up_l << "\t" << lo_r << std::endl;
+        expandcells.clear();
+        expanded = false;
+        //try to expand left quite ugly, should be cleaned up a bit.
+        if(!IsOutsideMap(up_l + point(-1, 0)))
+        {
+            int x = up_l.x - 1;
+
+            bool lastfree = false;
+            Cell newcell;
+            bool hit_freespace = false;
+            for(int y = up_l.y; y <= lo_r.y; y++)
+            {
+                if(cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id)
+                {
+                    if(lastfree)
+                        newcell.lower_right += point(0, 1);
+                    else if(hit_freespace)
+                    {
+                        expandcells.push_back(newcell);
+                        newcell.upper_left = {up_l.x - 1, y};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                    else
+                    {
+                        hit_freespace = true;
+                        newcell.upper_left = {up_l.x - 1, y};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                }
+
+                lastfree = (cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id);
+            }
+            if(hit_freespace) expandcells.push_back(newcell);
+            if(lastfree)
+            {
+                if(newcell.upper_left.y == up_l.y && newcell.lower_right.y == lo_r.y)
+                {
+                    expandcells.pop_back();
+                    up_l.x -= 1;
+                    expanded = true;
+                }
+            }
+        }
+
+        //expand right
+        if(!IsOutsideMap(lo_r + point(1, 0)))
+        {
+            int x = lo_r.x + 1;
+
+            bool lastfree = false;
+            Cell newcell;
+            bool hit_freespace = false;
+            for(int y = up_l.y; y <= lo_r.y; y++)
+            {
+                if(cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id)
+                {
+                    if(lastfree)
+                        newcell.lower_right += point(0, 1);
+                    else if(hit_freespace)
+                    {
+                        expandcells.push_back(newcell);
+                        newcell.upper_left = {lo_r.x + 1, y};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                    else
+                    {
+                        hit_freespace = true;
+                        newcell.upper_left = {lo_r.x + 1, y};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                }
+                lastfree = (cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id);
+            }
+            if(hit_freespace) expandcells.push_back(newcell);
+            if(lastfree)
+            {
+                if(newcell.upper_left.y == up_l.y && newcell.lower_right.y == lo_r.y)
+                {
+                    lo_r.x += 1;
+                    expanded = true;
+                }
+                else expandcells.push_back(newcell);
+            }
+        }
+
+        //expand up
+        if(!IsOutsideMap(up_l + point(0, -1)))
+        {
+            int y = up_l.y - 1;
+
+            bool lastfree = false;
+            Cell newcell;
+            bool hit_freespace = false;
+            for(int x = up_l.x; x <= lo_r.x; x++)
+            {
+                if(cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id)
+                {
+                    if(lastfree)
+                        newcell.lower_right += point(1, 0);
+                    else if(hit_freespace)
+                    {
+                        expandcells.push_back(newcell);
+                        newcell.upper_left = {x, up_l.y - 1};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                    else
+                    {
+                        hit_freespace = true;
+                        newcell.upper_left = {x, up_l.y - 1};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                }
+                lastfree = (cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id);
+            }
+            if(hit_freespace) expandcells.push_back(newcell);
+            if(lastfree)
+            {
+                if(newcell.upper_left.x == up_l.x && newcell.lower_right.x == lo_r.x)
+                {
+                    up_l.y -= 1;
+                    expanded = true;
+                }
+                else expandcells.push_back(newcell);
+            }
+        }
+        //expand down
+        if(!IsOutsideMap(lo_r + point(0, 1)))
+        {
+            int y = lo_r.y + 1;
+
+            bool lastfree = false;
+            Cell newcell;
+            bool hit_freespace = false;
+            for(int x = up_l.x; x <= lo_r.x; x++)
+            {
+                if(cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id)
+                {
+                    if(lastfree)
+                        newcell.lower_right += point(1, 0);
+                    else if(hit_freespace)
+                    {
+                        expandcells.push_back(newcell);
+                        newcell.upper_left = {x, lo_r.y + 1};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                    else
+                    {
+                        hit_freespace = true;
+                        newcell.upper_left = {x, lo_r.y + 1};
+                        newcell.lower_right = newcell.upper_left;
+                    }
+                }
+                lastfree = (cellDecompMap[x][y] == 0 || cellDecompMap[x][y] == id);
+            }
+            if(hit_freespace) expandcells.push_back(newcell);
+            if(lastfree)
+            {
+                if(newcell.upper_left.x == up_l.x && newcell.lower_right.x == lo_r.x)
+                {
+                    lo_r.y += 1;
+                    expanded = true;
+                }
+                else expandcells.push_back(newcell);
+            }
+        }
+
+    } while(expanded);
+    //make all in current cell member of itself
+
+    for(int x = up_l.x; x <= lo_r.x; x++)
+        for(int y = up_l.y; y <= lo_r.y ; y++)
+        {
+            cellDecompMap[x][y] = id;
+        }
+
+        seedcell.upper_right = {seedcell.lower_right.x, seedcell.upper_left.y};
+        seedcell.lower_left = {seedcell.upper_left.x, seedcell.lower_right.y};
+        cells.push_back(seedcell);
+        for(auto &c : expandcells)
+        {
+            cellDecomposition(c, ++cellid);
+        }
+}
+void CupCollector::prepareCellDecomposition()
+{
+    //Prepare the cell decomposition
+    for(int x = 0; x < size_x; x++)
+    {
+        cellDecompMap.push_back(vector<uint64_t>());
+        for(int y = 0; y < size_y; y++)
+        {
+            if(configurationspace[x][y] != obstacle) cellDecompMap[x].push_back(0);
+            else cellDecompMap[x].push_back(1);
+        }
+    }
 }
 
 void CupCollector::cellDecomposition(){

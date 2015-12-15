@@ -23,6 +23,11 @@ class point
   {
     return {p.x + this->x, p.y + this->y};
   }
+  inline void operator +=(const point &p)
+  {
+      this->x += p.x;
+      this->y += p.y;
+  }
 
   float GetDistance(const point &p) const;
   static float GetDistance(const point p1, const point p2);

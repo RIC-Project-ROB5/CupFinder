@@ -83,8 +83,8 @@ class CupCollector
         void SaveConnectionMap(std::string name);
         void SaveCellMap(std::string name);
         void cleanCells();
-
-
+        void prepareCellDecomposition();
+        void cellDecomposition(Cell &seedcell, uint64_t id);
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
@@ -102,9 +102,10 @@ class CupCollector
         std::vector< point > move_path;
         std::vector< std::vector< mapSpace> > workspace;
         std::vector< std::vector< mapSpace> > configurationspace;
+        std::vector< std::vector< uint64_t > > cellDecompMap;
         std::vector< Cell > cells;
         std::vector< Waypoint > wayPoints;
-
+        uint64_t cellid = 2;
         uint64_t **wavefront = nullptr; //the wavefront map
 
         bool debug = true;
