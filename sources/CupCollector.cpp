@@ -1,6 +1,7 @@
 #include "CupCollector.hpp"
 #include <limits>
 #include <cassert>
+#include <cstdlib>
 
 using namespace std;
 using namespace rw::sensor;
@@ -11,6 +12,16 @@ static point neighbours[] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {-1, -1}, {1, 1},
 static point expand_points[] = {{1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {2, -2}, {2, -1}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {-1, 2}, {-2, 2}, {-2, -1}, {-2, 0}, {-2, -1}, {-2, -2}, {-1, -2}, {0, -2}, {1, -2}, {3, -3}, {3, -2}, {3, -1}, {3, 0}, {3, 1}, {3, 2}, {3, 3}, {2, 3}, {1, 3}, {0, 3}, {-1, 3}, {-2, 3}, {-3, 3}, {-3, 2}, {-3, 1}, {-3, 0}, {-3, -1}, {-3, -2}, {-3, -3}, {-2, -3}, {-1, -3}, {0, -3}, {1, -3}, {2, -3}, {4, -2}, {4, -1}, {4, 0}, {4, 1}, {4, 2}, {2, 4}, {1, 4}, {0, 4}, {-1, 4}, {-2, 4}, {-4, 2}, {-4, 1}, {-4, 0}, {-4, -1}, {-4, -2}, {-2, -4}, {-1, -4}, {0, -4}, {1, -4}, {2, -4}};   //68 points
 
 
+void DrawSquare(Image *img, point upper_left, point lower_right, RGB colour)
+{   //this only works for "perfect" squares
+    for(int x = upper_left.x; x <= lower_right.x ; x++)
+    {
+        for(int y = upper_left.y; y < lower_right.y ; y++)
+        {
+            img->setPixel8U(x, y, colour.r, colour.g, colour.b);
+        }
+    }
+}
 
 RGB mapcolour(uint64_t value, uint64_t max)
 { //map colours according to value and maxvalue
@@ -57,7 +68,8 @@ CupCollector::CupCollector(Image* map)
         std::cout << "Wavefront created" << std::endl;
 
     cellDecomposition();
-
+    //remove cells which the wavefront don't enter (this means the are not in the map)
+    cleanCells();
 	graphConnecting();
 
     //Create output image
@@ -135,7 +147,9 @@ std::vector<point> CupCollector::WalkLine(vector2D const &line) const
     line_points.push_back(cur);
     while(cur != line.getEndPoint())
     {
-        point next_point = FindNextPointOnLine(line, cur);
+        bool success = false;
+        point next_point = FindNextPointOnLine(line, cur, &success);
+        if(!success) return std::vector<point>();
         cur = next_point;
         //std::cout << cur.x << " " << cur.y << std::endl;
         line_points.push_back(cur);
@@ -144,10 +158,11 @@ std::vector<point> CupCollector::WalkLine(vector2D const &line) const
     return line_points;
 }
 
-point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur) const
+point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur, bool *success ) const
 {
     //check all 8 directions collect the ones which are closer to the endpoint of the line
     // to the endpoint of the linethan the current.
+    if(success != nullptr) *success = true;
     point closestpoint(-1, -1);
     float curdistance = cur.GetDistance(line.getEndPoint());
     float mindistance = std::numeric_limits<float>::infinity();
@@ -166,7 +181,7 @@ point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur) 
             }
         }
     }
-    assert(closestpoint != point(-1, -1) );
+    if(success != nullptr && closestpoint == point(-1, -1)) *success = false;
     return closestpoint;
 }
 
@@ -437,7 +452,22 @@ void CupCollector::findWaypoints(size_t id){
 void CupCollector::graphConnecting(){
 	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
 }
-
+void CupCollector::cleanCells()
+{
+    auto tmpcells = cells;
+    for(auto &c : cells)
+    {
+        if( getDistance(c.lower_left) == freespace  ||
+            getDistance(c.lower_right) == freespace ||
+            getDistance(c.upper_left) == freespace  ||
+            getDistance(c.upper_right) == freespace)
+        {
+            continue;
+        }
+        tmpcells.push_back(c);
+    }
+    cells = tmpcells;
+}
 
 void CupCollector::SaveWorkspaceMap(std::string name)
 {
@@ -536,9 +566,8 @@ void CupCollector::SaveConnectionMap(std::string name)
         for(auto &con : wp.connections)
         {
             vector2D line(wp.coord, con.linkptr->coord);
-            if(line.getStartPoint().x != 2555 && line.getEndPoint().x != 2555)
-                for(auto &p : WalkLine(line))
-                    connections_img.setPixel8U(p.x, p.y, 0, 0, 255);
+            for(auto &p : WalkLine(line))
+                connections_img.setPixel8U(p.x, p.y, 0, 0, 255);
         }
     }
 
@@ -580,6 +609,41 @@ void CupCollector::SaveWaypointMap(std::string name)
 
     waypoints_img.saveAsPPM(name);
 }
+void CupCollector::SaveCellMap(std::string name)
+{
+    Image cell_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the wavefront
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            RGB col = {0, 0, 0};
+            switch(configurationspace[x][y])
+            {
+                case freespace:
+                    col = {255, 0, 0};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case dropoff:
+                    col = {0, 255, 0};
+                    break;
+                case cup:
+                    col = {100, 255, 100};
+                    break;
+                default:
+                    assert(false);
+            }
+            cell_img.setPixel8U(x, y, col.r, col.g, col.b);
+        }
+    }
+
+    for(auto &c : cells)
+    {
+        RGB col;
+        col.r = 0; col.g = rand()%200; col.b = rand()%200;
+        DrawSquare(&cell_img, c.upper_left, c.lower_right, col);
+    }
+    cell_img.saveAsPPM(name);
+}
 
 void CupCollector::SaveWavefrontMap(std::string name)
 {
@@ -612,6 +676,7 @@ void CupCollector::SaveWavefrontMap(std::string name)
 void CupCollector::SaveMaps() {
 
     SaveWaypointMap("waypoints.ppm");
+    SaveCellMap("cells.ppm");
     SaveConnectionMap("connections.ppm");
     SaveWorkspaceMap("workspace.ppm");
     SaveWavefrontMap("wavefront.ppm");

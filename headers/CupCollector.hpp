@@ -71,7 +71,7 @@ class CupCollector
 
         void SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
         std::vector<point> WalkLine(vector2D const &line) const;
-        point FindNextPointOnLine(const vector2D &line, const point &cur) const;
+        point FindNextPointOnLine(const vector2D &line, const point &cur, bool *success = nullptr) const;
         bool IsOutsideMap(const point &p) const;
         void CreateWorkspaceMap(rw::sensor::Image* map);
         bool IsObstacleWS(const point &p) const;
@@ -87,6 +87,8 @@ class CupCollector
         void SaveWaypointMap(std::string name);
         void SaveWavefrontMap(std::string name);
         void SaveConnectionMap(std::string name);
+        void SaveCellMap(std::string name);
+        void cleanCells();
 
 
     public: //public functions
