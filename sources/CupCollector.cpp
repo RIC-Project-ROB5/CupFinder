@@ -16,7 +16,7 @@ void DrawSquare(Image *img, point upper_left, point lower_right, RGB colour)
 {   //this only works for "perfect" squares
     for(int x = upper_left.x; x <= lower_right.x ; x++)
     {
-        for(int y = upper_left.y; y < lower_right.y ; y++)
+        for(int y = upper_left.y; y <= lower_right.y ; y++)
         {
             img->setPixel8U(x, y, colour.r, colour.g, colour.b);
         }
