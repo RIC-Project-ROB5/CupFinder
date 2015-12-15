@@ -86,6 +86,7 @@ class CupCollector
         void SaveConfigurationspaceMap(std::string name);
         void SaveWaypointMap(std::string name);
         void SaveWavefrontMap(std::string name);
+        void SaveConnectionMap(std::string name);
 
 
     public: //public functions

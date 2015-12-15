@@ -34,6 +34,8 @@ RGB mapcolour(uint64_t value, uint64_t max)
 
 CupCollector::CupCollector(Image* map)
 {
+    wayPoints.reserve(100000); //quick and dirty fix.
+    cells.reserve(100000); //quick and dirty fix. Should be fixed another way.
     //Save image dimensions
     size_x = map->getWidth();
     size_y = map->getHeight();
@@ -81,7 +83,6 @@ CupCollector::~CupCollector()
 
 void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
 {
-    int cups = 0;
     int channel = 0; //the map is grayscale, so channel is 0
     for(uint32_t x = 0; x < map->getWidth(); x++)
     {
@@ -99,7 +100,6 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
                     break;
                 case 150:
                     pixeltype = cup;
-                    cups++;
                     break;
                 default:
                     pixeltype = freespace;
@@ -109,7 +109,6 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
         }
         workspace.push_back(y_line);
     }
-    std::cout << cups << std::endl;
 }
 
 
@@ -129,8 +128,8 @@ void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint,
 std::vector<point> CupCollector::WalkLine(vector2D const &line) const
 {   //Walk along the line from startpoint to endpoint
     //There should be a clear path, e.g. no obstacles.
-    std::cout << line.getStartPoint().x << ", " << line.getStartPoint().x << "]-[" <<
-    line.getEndPoint().x << "," << line.getEndPoint().y << std::endl;
+    //std::cout << "[" << line.getStartPoint().x << ", " << line.getStartPoint().y << "]-[" <<
+    //line.getEndPoint().x << "," << line.getEndPoint().y << "]" <<std::endl;
     std::vector<point> line_points;
     point cur = line.getStartPoint();
     line_points.push_back(cur);
@@ -138,9 +137,9 @@ std::vector<point> CupCollector::WalkLine(vector2D const &line) const
     {
         point next_point = FindNextPointOnLine(line, cur);
         cur = next_point;
-        std::cout << cur.x << " " << cur.y << std::endl;
+        //std::cout << cur.x << " " << cur.y << std::endl;
         line_points.push_back(cur);
-        if(line_points.size() > 100) exit(0);
+        //if(line_points.size() > 100) exit(0);
     }
     return line_points;
 }
@@ -311,74 +310,99 @@ void CupCollector::check_neighbour(const point &this_point, const point &neighbo
 
 void CupCollector::cellDecomposition(){
 
-	int prevPixel = obstacle;
+    int prevPixel = obstacle;
 
-	for (size_t x = 0; x < configurationspace.size(); x++){
-		int yStart = 0;
-		int yEnd = 0;
-		for (size_t y = 0; y < configurationspace[x].size(); y++){
+    for (size_t x = 0; x < configurationspace.size(); x++){
 
-			if (configurationspace[x][y] != obstacle && prevPixel == obstacle){
+        // start and end position of the current line
+        int yStart = 0;
+        int yEnd = 0;
 
-				yStart = y;
-			}
-			else if (configurationspace[x][y] == obstacle && prevPixel != obstacle){
+        for (size_t y = 0; y < configurationspace[x].size(); y++){
 
-				yEnd = y - 1;
+            // if the last pixel was an obstacle and the new pixel is not an obstacle then start new line
+            if (configurationspace[x][y] != obstacle && prevPixel == obstacle){
 
-				bool cellMatch = false;
+                yStart = y;
+            }
+            // if the last pixel was not an obsticle and the new line is an obsticle end the current line
+            else if (configurationspace[x][y] == obstacle && prevPixel != obstacle){
 
-				for (size_t i = 0; i < cells.size(); i++){
-					if (cells[i].upper_left.y == yStart && cells[i].lower_left.y == yEnd){
-						cellMatch = true;
-						cells[i].upper_right.x++;
-						cells[i].lower_right.x++;
-					}
-				}
+                yEnd = y - 1;
 
-				if (!cellMatch){
-					Cell newCell;
-					newCell.upper_left = point(x, yStart);
-					newCell.lower_left = point(x, yEnd);
-					newCell.upper_right = point(x, yStart);
-					newCell.lower_right = point(x, yEnd);
-					newCell.searched = false;
-					cells.push_back(newCell);
-				}
-			}
+                bool cellMatch = false;
 
-			prevPixel = configurationspace[x][y];
-		}
-	}
+                // looping through all cells to check for connection
+                for (size_t i = 0; i < cells.size(); i++){
+                    // if the new line match the height and the position of a cell expand that cell
+                    if (cells[i].upper_left.y == yStart && cells[i].lower_left.y == yEnd){
+                        cellMatch = true;
+                        cells[i].upper_right.x++;
+                        cells[i].lower_right.x++;
+                        break;
+                    }
+                }
 
-	//remove all nonaccesible cells
-    auto tmpcells = cells;
-    cells.clear();
-    for( auto &cell : tmpcells)
-    {
-        if (getDistance(cell.lower_left) != freespace)
-            cells.push_back(cell);
+                // if the new line does not match any other then create a new cell
+                if (!cellMatch){
+                    Cell newCell;
+                    newCell.upper_left = point(x, yStart);
+                    newCell.lower_left = point(x, yEnd);
+                    newCell.upper_right = point(x, yStart);
+                    newCell.lower_right = point(x, yEnd);
+                    newCell.searched = false;
+                    cells.push_back(newCell);
+                }
+            }
+
+            prevPixel = configurationspace[x][y];
+        }
     }
 }
 
 void CupCollector::findWaypoints(size_t id){
-	vector<point> coord;
+    vector<point> coord;
+
+	// finding all waypoints at the intersection lines between the id cell and neighbor cells
 	for (size_t i = 0; i < cells.size(); i++){
 		if (i == id) continue;
+
+		// if the cell have a neighbor to the left then add the waypoint between
 		if ((cells[i].lower_right.x + 1 == cells[id].upper_left.x &&
 			(cells[i].lower_right.y > cells[id].upper_left.y &&
 			cells[i].upper_right.y < cells[id].lower_left.y))
-		) coord.push_back(point(cells[i].lower_right.x, (min(cells[i].lower_left.y, cells[id].lower_left.y) - max(cells[i].upper_left.y, cells[id].upper_left.y)) / 2 + max(cells[i].upper_left.y, cells[id].upper_left.y)));
+		) coord.push_back(
+			point(cells[i].lower_right.x,
+			(
+				min(cells[i].lower_left.y, cells[id].lower_left.y) -
+				max(cells[i].upper_left.y, cells[id].upper_left.y)
+			) / 2 +
+			max(cells[i].upper_left.y, cells[id].upper_left.y)));
+
+		// if the cell have a neighbor to the right then add the waypoint between
 		else if ((cells[i].upper_left.x - 1 == cells[id].lower_right.x &&
 			(cells[i].lower_left.y > cells[id].upper_right.y &&
 			cells[i].upper_left.y < cells[id].lower_right.y))
-		) coord.push_back(point(cells[id].lower_right.x, (min(cells[i].lower_left.y, cells[id].lower_left.y) - max(cells[i].upper_left.y, cells[id].upper_left.y)) / 2 + max(cells[i].upper_left.y, cells[id].upper_left.y)));
+		) coord.push_back(
+			point(cells[id].lower_right.x,
+			(
+				min(cells[i].lower_left.y, cells[id].lower_left.y) -
+				max(cells[i].upper_left.y, cells[id].upper_left.y)
+			) / 2 +
+			max(cells[i].upper_left.y, cells[id].upper_left.y)));
 	}
 
+
+
+	// a list of pointers to all waypoints in the cell
 	vector<Waypoint*> waypointPtr;
 
+	// adding pointers of waypoints to be connected, to the waypoint pointer list
 	for (size_t i = 0; i < coord.size(); i++){
+
 		bool match = false;
+
+		// loops through all earlier waypoints to find a match
 		for (size_t j = 0; j < wayPoints.size(); j++){
 			if (coord[i] == wayPoints[j].coord){
 				waypointPtr.push_back(&wayPoints[j]);
@@ -386,6 +410,8 @@ void CupCollector::findWaypoints(size_t id){
 				break;
 			}
 		}
+
+		// if the waypoint is not created crate it and add the address to the waypoint pointer list
 		if (!match){
 			Waypoint temp;
 			temp.coord = coord[i];
@@ -394,16 +420,19 @@ void CupCollector::findWaypoints(size_t id){
 		}
 	}
 
+	// looping though all waypoints in the cell and create a connection to each other waypoint
 	for (size_t i = 0; i < waypointPtr.size(); i++){
 		for (size_t j = 0; j < waypointPtr.size(); j++){
 			if (i == j) continue;
 			Waypoint_connection temp;
 			temp.linkptr = waypointPtr[j];
 			temp.connection_cell = &cells[id];
-			(*waypointPtr[i]).connections.push_back(temp);
+			temp.cost = 0;// cost function goes here
+			waypointPtr[i]->connections.push_back(temp);
 		}
 	}
 }
+
 
 void CupCollector::graphConnecting(){
 	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
@@ -473,7 +502,51 @@ void CupCollector::SaveConfigurationspaceMap(std::string name)
 
 }
 
-void CupCollector::SaveWaypointMap(__attribute__((unused))std::string name)
+void CupCollector::SaveConnectionMap(std::string name)
+{
+    //same as configuration space
+    Image connections_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
+
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            RGB col = {0, 0, 0};
+            switch(configurationspace[x][y])
+            {
+                case freespace:
+                    col = {255, 255, 255};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case dropoff:
+                    col = {0, 255, 0};
+                    break;
+                case cup:
+                    col = {100, 255, 100};
+                    break;
+                default:
+                    assert(false);
+            }
+            connections_img.setPixel8U(x, y, col.r, col.g, col.b);
+        }
+    }
+    //Put in connections
+    for(auto &wp : wayPoints)
+    {
+        for(auto &con : wp.connections)
+        {
+            vector2D line(wp.coord, con.linkptr->coord);
+            if(line.getStartPoint().x != 2555 && line.getEndPoint().x != 2555)
+                for(auto &p : WalkLine(line))
+                    connections_img.setPixel8U(p.x, p.y, 0, 0, 255);
+        }
+    }
+
+    connections_img.saveAsPPM(name);
+}
+
+
+void CupCollector::SaveWaypointMap(std::string name)
 {
     //same as configuration space
     Image waypoints_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
@@ -501,28 +574,10 @@ void CupCollector::SaveWaypointMap(__attribute__((unused))std::string name)
             waypoints_img.setPixel8U(x, y, col.r, col.g, col.b);
         }
     }
-    int i = 0;
+    //put in waypoints
     for(auto &wp : wayPoints)
-    {
-        std::cout << std::endl;
-        std::cout << "waypoint " << i++ << " Out of " << wayPoints.size() <<
-        " Got " << wp.connections.size() << " connections." << " Coords are ["
-        <<wp.coord.x << "," << wp.coord.y << "]" << std::endl;
-        //put in waypoint
         waypoints_img.setPixel8U(wp.coord.x, wp.coord.y, 255, 0, 0);
-        //put in connections
-        for(auto &con : wp.connections)
-        {
-            //create line
-            vector2D line(wp.coord, con.linkptr->coord);
-            std::cout << "[" <<  con.linkptr->coord.x << "," << con.linkptr->coord.y << "]";
-            std::cout << "\tPointer address is: " << con.linkptr << std::endl;
-            //for(auto &p : WalkLine(line))
-            //{
-            //    waypoints_img.setPixel8U(p.x, p.y, 0, 0, 255);
-            //}
-        }
-    }
+
     waypoints_img.saveAsPPM(name);
 }
 
@@ -557,6 +612,7 @@ void CupCollector::SaveWavefrontMap(std::string name)
 void CupCollector::SaveMaps() {
 
     SaveWaypointMap("waypoints.ppm");
+    SaveConnectionMap("connections.ppm");
     SaveWorkspaceMap("workspace.ppm");
     SaveWavefrontMap("wavefront.ppm");
     SaveConfigurationspaceMap("configurationspace.ppm");
