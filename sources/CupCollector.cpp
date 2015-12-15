@@ -303,6 +303,18 @@ void CupCollector::prepare_wavefront()
   }
 }
 
+void CupCollector::setDistance(const point &p, const uint64_t value)
+{
+    assert(!IsOutsideMap(p));
+    wavefront[p.x][p.y] = value;
+}
+
+uint64_t CupCollector::getDistance(const point &p) const
+{ //returns distance to goal
+    assert(!IsOutsideMap(p));
+    return wavefront[p.x][p.y];
+}
+
 void CupCollector::check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next)
 { //check if we should expand in to the given neighbour, and if so, add it
   //to the list of points to check on next run.
@@ -452,21 +464,23 @@ void CupCollector::findWaypoints(size_t id){
 void CupCollector::graphConnecting(){
 	for (size_t i = 0; i < cells.size(); i++) findWaypoints(i);
 }
+
 void CupCollector::cleanCells()
 {
     auto tmpcells = cells;
-    for(auto &c : cells)
+    cells.clear();
+    for(auto &c : tmpcells)
     {
-        if( getDistance(c.lower_left) == freespace  ||
-            getDistance(c.lower_right) == freespace ||
-            getDistance(c.upper_left) == freespace  ||
-            getDistance(c.upper_right) == freespace)
+        if( getDistance(c.lower_left) != freespace  &&
+            getDistance(c.lower_right) != freespace &&
+            getDistance(c.upper_left) != freespace  &&
+            getDistance(c.upper_right) != freespace)
         {
-            continue;
+            cells.push_back(c);
+            //std::cout << c.upper_left << " " << c.lower_left << " " <<
+            //c.upper_right << " " << c.lower_right << " " << std::endl;
         }
-        tmpcells.push_back(c);
     }
-    cells = tmpcells;
 }
 
 void CupCollector::SaveWorkspaceMap(std::string name)

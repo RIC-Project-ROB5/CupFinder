@@ -59,16 +59,10 @@ class CupCollector
     private: //private functions
         void ExpandPixel(const point p);
         void prepare_wavefront();
-        inline void setDistance(const point &p, const uint64_t value)
-        {
-            wavefront[p.x][p.y] = value;
-        }
-        void check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next);
-        inline uint64_t getDistance(const point &p) const
-        { //returns distance to goal
-            return wavefront[p.x][p.y];
-        }
+        void setDistance(const point &p, const uint64_t value);
 
+        void check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next);
+        uint64_t getDistance(const point &p) const;
         void SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
         std::vector<point> WalkLine(vector2D const &line) const;
         point FindNextPointOnLine(const vector2D &line, const point &cur, bool *success = nullptr) const;

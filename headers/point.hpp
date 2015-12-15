@@ -1,4 +1,5 @@
 #pragma once
+#include <ostream>
 class point
 {
   public:
@@ -27,3 +28,5 @@ class point
   static float GetDistance(const point p1, const point p2);
   bool isNeighbour(const point &p);
 };
+
+std::ostream& operator<<(std::ostream &os, const point &p);
