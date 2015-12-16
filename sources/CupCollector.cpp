@@ -45,9 +45,9 @@ RGB mapcolour(uint64_t value, uint64_t max)
 
 CupCollector::CupCollector(Image* map)
 {
-    wayPoints.reserve(100000); //quick and dirty fix.
-    cells.reserve(100000); //quick and dirty fix. Should be fixed another way.
     //Save image dimensions
+    //cells.reserve(100000);
+    //wayPoints.reserve(100000);
     size_x = map->getWidth();
     size_y = map->getHeight();
     if (debug)
@@ -72,7 +72,8 @@ CupCollector::CupCollector(Image* map)
     seedc.upper_left = {2000, 1280};
     seedc.lower_right = seedc.upper_left + point(0, 10);
     cellDecomposition(seedc, cellid);
-    std::cout << cells.size() << std::endl;
+    if(debug)
+        std::cout << "Created " << cells.size() << " cells." << std::endl;
     //set the right id's in the cell decomposition map
     cleanCellMap();
 
@@ -341,6 +342,8 @@ void CupCollector::check_neighbour(const point &this_point, const point &neighbo
   }
 }
 
+
+
 void CupCollector::cellDecomposition(Cell &seedcell, int64_t id)
 {
     //This algorithm performs celldecomposition in a rather special way:
@@ -568,11 +571,12 @@ void CupCollector::prepareCellDecomposition()
 }
 
 
-void CupCollector::findWaypoints(int64_t id){
+void CupCollector::findWaypoints(int64_t __attribute__((unused))id){
     vector<point> points;
 
 	// finding all waypoints at the intersection lines between the id cell and neighbor cells
     auto &c = cells[id];
+    //std::cout << c.upper_left << " " << c.lower_left << " " << c.upper_right << " " << c.lower_right << std::endl;
 	//find points to the left
     if(!IsOutsideMap(c.upper_left + point(-1, 0)))
     {
@@ -582,21 +586,34 @@ void CupCollector::findWaypoints(int64_t id){
         int64_t lastid = id;
         for(int y = c.upper_left.y; y <= c.lower_left.y; y++)
         {
-            if(cellDecompMap[x][y] != -1)//there is another cell
+            if(cellDecompMap[x][y] == -1)//there is an obstacle
             {
-                if(lastid == cellDecompMap[x][y])
-                    end++;
-                else
-                {
-                    if(lastid != id) points.push_back(point(c.upper_left.x, (start + end) / 2));
+                if(lastid != id && lastid != -1) points.push_back(point(c.upper_left.x, (start + end) / 2));
+            }
+            else
+            {
+                if(lastid == -1 || lastid == id)
+                {   //start a new connection
                     start = y;
                     end = y;
                 }
+                else if(lastid != cellDecompMap[x][y])
+                {
+                    points.push_back(point(c.upper_left.x, (start + end) / 2));
+                    //start a new connection
+                    start = y;
+                    end = y;
+                }
+                else end++;
             }
             lastid = cellDecompMap[x][y];
         }
-        if(lastid != id) points.push_back(point(c.upper_left.x, (start + end) / 2));
+        if(lastid != -1)
+        {
+            points.push_back(point(c.upper_left.x, (start + end) / 2));
+        }
     }
+
 
     //find points to the right
     if(!IsOutsideMap(c.upper_right + point(1, 0)))
@@ -607,24 +624,36 @@ void CupCollector::findWaypoints(int64_t id){
         int64_t lastid = id;
         for(int y = c.upper_right.y; y <= c.lower_right.y; y++)
         {
-            if(cellDecompMap[x][y] != -1)//there is another cell
+            if(cellDecompMap[x][y] == -1)//there is an obstacle
             {
-                if(lastid == cellDecompMap[x][y])
-                    end++;
-                else
-                {
-                    if(lastid != id) points.push_back(point(c.upper_right.x, (start + end) / 2));
+                if(lastid != id && lastid != -1) points.push_back(point(c.upper_right.x, (start + end) / 2));
+            }
+            else
+            {
+                if(lastid == -1 || lastid == id)
+                {   //start a new connection
                     start = y;
                     end = y;
                 }
+                else if(lastid != cellDecompMap[x][y])
+                {
+                    points.push_back(point(c.upper_right.x, (start + end) / 2));
+                    //start a new connection
+                    start = y;
+                    end = y;
+                }
+                else end++;
             }
             lastid = cellDecompMap[x][y];
         }
-        if(lastid != id) points.push_back(point(c.upper_right.x, (start + end) / 2));
-
+        if(lastid != -1)
+        {
+            points.push_back(point(c.upper_right.x, (start + end) / 2));
+        }
     }
+
     //find points up
-    if(!IsOutsideMap(c.upper_right + point(0, -1)))
+    if(!IsOutsideMap(c.upper_left + point(0, -1)))
     {
         int start = c.upper_left.x;
         int end = start;
@@ -632,69 +661,94 @@ void CupCollector::findWaypoints(int64_t id){
         int64_t lastid = id;
         for(int x = c.upper_left.x; x <= c.upper_right.x; x++)
         {
-            if(cellDecompMap[x][y] != -1)//there is another cell
+            if(cellDecompMap[x][y] == -1)//there is an obstacle
             {
-                if(lastid == cellDecompMap[x][y])
-                    end++;
-                else
-                {
-                    if(lastid != id) points.push_back(point((start + end) / 2, c.upper_right.y));
+                if(lastid != id && lastid != -1) points.push_back(point((start + end) / 2, c.upper_right.y));
+            }
+            else
+            {
+                if(lastid == -1 || lastid == id)
+                {   //start a new connection
                     start = x;
                     end = x;
                 }
+                else if(lastid != cellDecompMap[x][y])
+                {
+                    points.push_back(point((start + end) / 2, c.upper_right.y));
+                    //start a new connection
+                    start = x;
+                    end = x;
+                }
+                else end++;
             }
             lastid = cellDecompMap[x][y];
         }
-        if(lastid != id) points.push_back(point((start + end) / 2, c.upper_right.y));
-
+        if(lastid != -1)
+        {
+            points.push_back(point((start + end) / 2, c.upper_right.y));
+        }
     }
+
     //find points down
     if(!IsOutsideMap(c.lower_right + point(0, 1)))
     {
         int start = c.lower_left.x;
         int end = start;
-        int y = c.lower_left.y - 1;
+        int y = c.lower_left.y + 1;
         int64_t lastid = id;
         for(int x = c.lower_left.x; x <= c.lower_right.x; x++)
         {
-            if(cellDecompMap[x][y] != -1)//there is another cell
+            if(cellDecompMap[x][y] == -1)//there is an obstacle
             {
-                if(lastid == cellDecompMap[x][y])
-                    end++;
-                else
-                {
-                    if(lastid != id) points.push_back(point((start + end) / 2, c.lower_right.y));
+                if(lastid != id && lastid != -1) points.push_back(point((start + end) / 2, c.lower_right.y));
+            }
+            else
+            {
+                if(lastid == -1 || lastid == id)
+                {   //start a new connection
                     start = x;
                     end = x;
                 }
+                else if(lastid != cellDecompMap[x][y])
+                {
+                    points.push_back(point((start + end) / 2, c.lower_right.y));
+                    //start a new connection
+                    start = x;
+                    end = x;
+                }
+                else end++;
             }
             lastid = cellDecompMap[x][y];
         }
-        if(lastid != id) points.push_back(point((start + end) / 2, c.lower_right.y));
-
+        if(lastid != -1)
+        {
+            points.push_back(point((start + end) / 2, c.lower_right.y));
+        }
     }
-
     //create all the waypoints
+    //std::cout << id << " " << points.size() << std::endl;
     size_t start_index = wayPoints.size();
     for(auto &p : points)
     {
         Waypoint tmp;
         tmp.coord = p;
-        std::cout << p << std::endl;
+        //std::cout << p << std::endl;
         wayPoints.push_back(tmp);
     }
     size_t end_index = wayPoints.size();
 
     //connect all waypoints in the cell
-    for(size_t i = start_index; i <= end_index; i++)
+    //std::cout << start_index << " " << end_index << std::endl;
+    for(size_t i = start_index; i < end_index; i++)
     {
-        for(size_t j = start_index; j <= end_index; j++)
+        for(size_t j = start_index; j < end_index; j++)
         {
             if(i == j) continue;
             Waypoint_connection tmp;
             tmp.index = j;
             tmp.connection_cell = &(cells[id]);
-            tmp.cost = 0;
+            vector2D line(wayPoints[i].coord, wayPoints[j].coord);
+            tmp.cost = WalkLine(line).size();
             wayPoints[i].connections.push_back(tmp);
         }
     }
@@ -708,10 +762,8 @@ void CupCollector::graphConnecting(){
         findWaypoints(i);
     }
     //connect all waypoints which can connect to each other, and are neighbours
-    std::cout << wayPoints.size() << std::endl;
     for(size_t i = 0; i < wayPoints.size(); i++)
     {
-        std::cout << i << std::endl;
         for(size_t j = 0; j < wayPoints.size(); j++)
         {
             bool skip = false;
@@ -724,18 +776,17 @@ void CupCollector::graphConnecting(){
                 }
             }
             if(skip) break;
-            if(!wayPoints[i].coord.isNeighbour(wayPoints[j].coord)) break;
+            if(wayPoints[i].coord.GetDistance(wayPoints[j].coord) > 2) break;
             vector2D line(wayPoints[i].coord, wayPoints[j].coord);
-            if(WalkLine(line).size())
-            {
-                Waypoint_connection tmp;
-                tmp.index = j;
-                tmp.connection_cell = nullptr;
-                tmp.cost = 0;
-                wayPoints[i].connections.push_back(tmp);
-            }
+            Waypoint_connection tmp;
+            tmp.index = j;
+            tmp.connection_cell = nullptr;
+            tmp.cost = WalkLine(line).size();
+            wayPoints[i].connections.push_back(tmp);
         }
     }
+    if(debug)
+        std::cout << "Created " << wayPoints.size() << " waypoints." << std::endl;
 }
 
 void CupCollector::cleanCellMap()
@@ -890,7 +941,10 @@ void CupCollector::SaveWaypointMap(std::string name)
     }
     //put in waypoints
     for(auto &wp : wayPoints)
+    {
+        assert(!IsOutsideMap(wp.coord));
         waypoints_img.setPixel8U(wp.coord.x, wp.coord.y, 255, 0, 0);
+    }
 
     waypoints_img.saveAsPPM(name);
 }
