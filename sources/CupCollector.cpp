@@ -843,7 +843,7 @@ void CupCollector::connectNeighbours(size_t id)
             }
         }
         if(connected) continue;
-        if(wayPoints[id].coord.isNeighbour(wayPoints[i].coord))
+        if(wayPoints[id].coord.GetDistance(wayPoints[i].coord) < 2)
         {   //create connection
             Waypoint_connection tmp;
             tmp.index = i;
