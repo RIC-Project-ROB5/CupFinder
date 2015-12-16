@@ -798,20 +798,30 @@ void CupCollector::findWaypoints(int64_t __attribute__((unused))id){
         wayPoints.push_back(tmp);
     }
     size_t end_index = wayPoints.size();
-
-    //connect all waypoints in the cell
-    //std::cout << start_index << " " << end_index << std::endl;
-    for(size_t i = start_index; i < end_index; i++)
+    if(points.size() == 1) //if only a single wp in the cell, make a connection to itself.
     {
-        for(size_t j = start_index; j < end_index; j++)
+        Waypoint_connection tmp;
+        tmp.index = start_index;
+        tmp.connection_cell = &(cells[id]);
+        tmp.cost = 0;
+        wayPoints[start_index].connections.push_back(tmp);
+    }
+    else
+    {
+        //connect all waypoints in the cell
+        //std::cout << start_index << " " << end_index << std::endl;
+        for(size_t i = start_index; i < end_index; i++)
         {
-            if(i == j) continue;
-            Waypoint_connection tmp;
-            tmp.index = j;
-            tmp.connection_cell = &(cells[id]);
-            vector2D line(wayPoints[i].coord, wayPoints[j].coord);
-            tmp.cost = WalkLine(line).size();
-            wayPoints[i].connections.push_back(tmp);
+            for(size_t j = start_index; j < end_index; j++)
+            {
+                if(i == j) continue;
+                Waypoint_connection tmp;
+                tmp.index = j;
+                tmp.connection_cell = &(cells[id]);
+                vector2D line(wayPoints[i].coord, wayPoints[j].coord);
+                tmp.cost = WalkLine(line).size();
+                wayPoints[i].connections.push_back(tmp);
+            }
         }
     }
 
