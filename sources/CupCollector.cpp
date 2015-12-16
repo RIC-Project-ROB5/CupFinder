@@ -413,7 +413,8 @@ void CupCollector::cellDecomposition(Cell &seedcell, int64_t id)
     //if we hid an obstacle on one of the sides we stop expanding this way.
     //However, if not all of the side is obstacles, we start expanding a new cell from this.
     //we only use upper_left and lower_right untill the end.
-
+    //The function is pretty long, but most of it is repetition for up/down/left/right
+    //Should probably be split up in multiple functions
     auto &up_l = seedcell.upper_left;
     auto &lo_r = seedcell.lower_right;
     //std::cout << up_l << "\t" << lo_r << std::endl;
@@ -634,6 +635,9 @@ void CupCollector::prepareCellDecomposition()
 
 
 void CupCollector::findWaypoints(int64_t __attribute__((unused))id){
+    //The function is pretty long, but most of it is repetition for up/down/left/right
+    //Should probably be split up in multiple functions
+
     vector<point> points;
 
 	// finding all waypoints at the intersection lines between the id cell and neighbor cells
