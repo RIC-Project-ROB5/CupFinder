@@ -76,8 +76,21 @@ CupCollector::CupCollector(Image* map)
         std::cout << "Created " << cells.size() << " cells." << std::endl;
     //set the right id's in the cell decomposition map
     cleanCellMap();
-
 	graphConnecting();
+    if(!validateMap())
+    {
+        std::cout << "Generated waypoint map is invalid, bailing out" << std::endl;
+        exit(1);
+    }
+    if(debug)
+        std::cout << "Generated waypoint map is valid" << std::endl;
+    if(!isGraphConnected())
+    {
+        std::cout << "Not all generated waypoints are connected, bailing out" << std::endl;
+        exit(1);
+    }
+    if(debug)
+        std::cout << "All generated waypoints are connected." << std::endl;
 
     //Create output image
     SaveMaps();
@@ -130,6 +143,55 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
     }
 }
 
+bool CupCollector::validateMap()
+{
+    //check if the map is valid. First check if all connections are bidirectional.
+    for(size_t i = 0; i < wayPoints.size(); i++)
+    {
+        auto &wp = wayPoints[i];
+        for(auto &con : wp.connections)
+        {
+            bool bidir = false;
+            for(auto &con2 : wayPoints[con.index].connections)
+            {
+                if(con2.index == i)
+                {
+                    bidir = true;
+                    break;
+                }
+            }
+            if(!bidir)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool CupCollector::isGraphConnected()
+{//In this function we traverse the entire graph. We do this by using a depth first Search
+    //Mark all waypoints as unvisited
+    for(auto &wp : wayPoints)
+        wp.visited = false;
+    traverseGraphRec(wayPoints[0]);
+    for(auto &wp : wayPoints)
+    {
+        if(wp.visited == false) return false;
+    }
+    return true;
+}
+void CupCollector::traverseGraphRec(Waypoint &wp)
+{
+    wp.visited = true;
+    for(auto &con : wp.connections)
+    {
+        if(wayPoints[con.index].visited == false)
+        {
+            traverseGraphRec(wayPoints[con.index]);
+        }
+    }
+}
 
 void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint, __attribute__((unused))const Waypoint &endpoint, __attribute__((unused))Cell &cell)
 {   //Searches the given cell for cups, collects them, return them to dropoff
@@ -755,7 +817,33 @@ void CupCollector::findWaypoints(int64_t __attribute__((unused))id){
 
 }
 
-
+void CupCollector::connectNeighbours(size_t id)
+{
+    //check for all waypoints if we should connect and if we are allready connected
+    for(size_t i = 0; i < wayPoints.size(); i++)
+    {
+        if(i == id) continue;
+        bool connected = false;
+        for(auto con : wayPoints[id].connections)
+        {
+            if(con.index == i)
+            {
+                connected = true;
+                break;
+            }
+        }
+        if(connected) continue;
+        if(wayPoints[id].coord.isNeighbour(wayPoints[i].coord))
+        {   //create connection
+            Waypoint_connection tmp;
+            tmp.index = i;
+            tmp.connection_cell = nullptr;
+            vector2D line(wayPoints[id].coord, wayPoints[i].coord);
+            tmp.cost = WalkLine(line).size();
+            wayPoints[id].connections.push_back(tmp);
+        }
+    }
+}
 void CupCollector::graphConnecting(){
 	for (size_t i = 0; i < cells.size(); i++)
     {
@@ -764,26 +852,7 @@ void CupCollector::graphConnecting(){
     //connect all waypoints which can connect to each other, and are neighbours
     for(size_t i = 0; i < wayPoints.size(); i++)
     {
-        for(size_t j = 0; j < wayPoints.size(); j++)
-        {
-            bool skip = false;
-            for(auto con : wayPoints[i].connections)
-            {
-                if(con.index == j)
-                {
-                    skip = true;
-                    break;
-                }
-            }
-            if(skip) break;
-            if(wayPoints[i].coord.GetDistance(wayPoints[j].coord) > 2) break;
-            vector2D line(wayPoints[i].coord, wayPoints[j].coord);
-            Waypoint_connection tmp;
-            tmp.index = j;
-            tmp.connection_cell = nullptr;
-            tmp.cost = WalkLine(line).size();
-            wayPoints[i].connections.push_back(tmp);
-        }
+        connectNeighbours(i);
     }
     if(debug)
         std::cout << "Created " << wayPoints.size() << " waypoints." << std::endl;

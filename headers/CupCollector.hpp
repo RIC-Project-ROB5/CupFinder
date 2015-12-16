@@ -35,13 +35,14 @@ struct Cell
     point lower_right;
     point upper_left;
     point upper_right;
-    bool searched; //Have this cell been covered yet?
+    bool searched = false; //Have this cell been covered yet?
 };
 
 struct Waypoint
 {
     point coord;
     std::vector<Waypoint_connection> connections; //list of connections to other cells
+    bool visited = false;
 };
 
 struct Waypoint_connection
@@ -85,6 +86,10 @@ class CupCollector
         void cleanCellMap();
         void prepareCellDecomposition();
         void cellDecomposition(Cell &seedcell, int64_t id);
+        bool isGraphConnected();
+        bool validateMap();
+        void connectNeighbours(size_t id);
+        void traverseGraphRec(Waypoint &wp);
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
