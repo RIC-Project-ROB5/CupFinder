@@ -46,8 +46,8 @@ struct Waypoint
 
 struct Waypoint_connection
 {
-    Waypoint *linkptr; //Pointer to the connected Waypoint
-    Cell *connection_cell; //the cell which connects the two Waypoints
+    size_t index; //index of connected waypoint
+    Cell *connection_cell; //the cell which connects the two Waypoints, nullptr if no cell
     uint32_t cost;         //The cost of traveling through this connection
 };
 
@@ -74,7 +74,7 @@ class CupCollector
         void compute_wavefront(); //(pre)computes the wavefront
         void cellDecomposition();
         void graphConnecting();
-        void findWaypoints(size_t id);
+        void findWaypoints(int64_t id);
         void findCells(int id);
         void SaveWorkspaceMap(std::string name);
         void SaveConfigurationspaceMap(std::string name);
@@ -82,9 +82,9 @@ class CupCollector
         void SaveWavefrontMap(std::string name);
         void SaveConnectionMap(std::string name);
         void SaveCellMap(std::string name);
-        void cleanCells();
+        void cleanCellMap();
         void prepareCellDecomposition();
-        void cellDecomposition(Cell &seedcell, uint64_t id);
+        void cellDecomposition(Cell &seedcell, int64_t id);
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
@@ -102,10 +102,10 @@ class CupCollector
         std::vector< point > move_path;
         std::vector< std::vector< mapSpace> > workspace;
         std::vector< std::vector< mapSpace> > configurationspace;
-        std::vector< std::vector< uint64_t > > cellDecompMap;
+        std::vector< std::vector< int64_t > > cellDecompMap;
         std::vector< Cell > cells;
         std::vector< Waypoint > wayPoints;
-        uint64_t cellid = 2;
+        int64_t cellid = 2;
         uint64_t **wavefront = nullptr; //the wavefront map
 
         bool debug = true;
