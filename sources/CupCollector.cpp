@@ -47,6 +47,10 @@ CupCollector::CupCollector(Image* map)
     //Save image dimensions
     //cells.reserve(100000);
     //wayPoints.reserve(100000);
+    //set debug false if production build
+    #ifdef NDEBUG
+        debug = false;
+    #endif
     size_x = map->getWidth();
     size_y = map->getHeight();
     if (debug)
@@ -91,14 +95,6 @@ CupCollector::CupCollector(Image* map)
     }
     if(debug)
         std::cout << "All generated waypoints are connected." << std::endl;
-
-    //Create output image
-    SaveMaps();
-    if (debug)
-        std::cout << "Maps have been saved" << std::endl;
-
-    std::cout << "Collected " << total_cups + current_cups << " cups" << std::endl;
-
 }
 
 CupCollector::~CupCollector()
@@ -264,10 +260,14 @@ std::vector<point> CupCollector::get_path()
         c.searched = false;
     auto ret_vec = SearchGraph(wayPoints[0]); //start at waypoint 0
     //make sure all cells are searchd and all graphs visited (only complains if asserts are enabled)
-    for(auto &wp : wayPoints)
+    for(auto __attribute__((unused))&wp : wayPoints)
         assert(wp.visited);
-    for(auto &c : cells)
+    for(auto __attribute__((unused))&c : cells)
         assert(c.searched);
+
+    if(debug)
+        std::cout << "Collected " << total_cups + current_cups << " cups." << std::endl;
+
     return ret_vec;
 }
 
@@ -1275,6 +1275,7 @@ void CupCollector::SaveWaypointMap(std::string name)
 
     waypoints_img.saveAsPPM(name);
 }
+
 void CupCollector::SaveCellMap(std::string name)
 {
     Image cell_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the wavefront
@@ -1301,11 +1302,10 @@ void CupCollector::SaveCellMap(std::string name)
             cell_img.setPixel8U(x, y, col.r, col.g, col.b);
         }
     }
-
     for(auto &c : cells)
     {
         RGB col;
-        col.r = 0; col.g = rand()%200; col.b = rand()%200;
+        col.r = 50; col.g = rand()%200 + 50; col.b = rand()%200 + 50;
         DrawSquare(&cell_img, c, col);
     }
     cell_img.saveAsPPM(name);
@@ -1336,7 +1336,6 @@ void CupCollector::SaveWavefrontMap(std::string name)
       }
     }
     wavefront_img.saveAsPPM(name);
-
 }
 
 void CupCollector::SaveSearchedMap(std::string name)
@@ -1361,7 +1360,6 @@ void CupCollector::SaveSearchedMap(std::string name)
                     break;
                 case cup:
                     col = {0, 255, 0};
-                    std::cout << point(x,y) << std::endl;
                     break;
                 default:
                     col = {255, 255, 255};
@@ -1372,7 +1370,7 @@ void CupCollector::SaveSearchedMap(std::string name)
     search_img.saveAsPPM(name);
 
 }
-void CupCollector::SaveWalkMap(std::string name)
+void CupCollector::SaveWalkMap(std::string name, std::vector<point> &path)
 {
     //All is white apart from obstacles.
     //Walkpath is green.
@@ -1401,26 +1399,11 @@ void CupCollector::SaveWalkMap(std::string name)
             walk_img.setPixel8U(x, y, col.r, col.g, col.b);
         }
     }
-    auto path = get_path();
     for(auto &p : path)
     {
         walk_img.setPixel8U(p.x, p.y, 0, 255, 255);
     }
     if(debug)
-        std::cout << "Path is " << path.size() << " long." << std::endl;
     walk_img.saveAsPPM(name);
 
-}
-
-
-void CupCollector::SaveMaps() {
-
-    SaveWaypointMap("waypoints.ppm");
-    SaveCellMap("cells.ppm");
-    SaveConnectionMap("connections.ppm");
-    SaveWorkspaceMap("workspace.ppm");
-    SaveWavefrontMap("wavefront.ppm");
-    SaveConfigurationspaceMap("configurationspace.ppm");
-    SaveWalkMap("RobotWalk.ppm");
-    SaveSearchedMap("SearchMap.ppm");
 }

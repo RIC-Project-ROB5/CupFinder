@@ -79,14 +79,6 @@ class CupCollector
         void graphConnecting();
         void findWaypoints(int64_t id);
         void findCells(int id);
-        void SaveWorkspaceMap(std::string name);
-        void SaveConfigurationspaceMap(std::string name);
-        void SaveWaypointMap(std::string name);
-        void SaveWalkMap(std::string name);
-        void SaveSearchedMap(std::string name);
-        void SaveWavefrontMap(std::string name);
-        void SaveConnectionMap(std::string name);
-        void SaveCellMap(std::string name);
         void cleanCellMap();
         void prepareCellDecomposition();
         void cellDecomposition(Cell &seedcell, int64_t id);
@@ -106,10 +98,17 @@ class CupCollector
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
+        void SaveWorkspaceMap(std::string name);
+        void SaveConfigurationspaceMap(std::string name);
+        void SaveWaypointMap(std::string name);
+        void SaveWalkMap(std::string name, std::vector<point> &path);
+        void SaveSearchedMap(std::string name);
+        void SaveWavefrontMap(std::string name);
+        void SaveConnectionMap(std::string name);
+        void SaveCellMap(std::string name);
 
         CupCollector(rw::sensor::Image *map);
         ~CupCollector();
-        void SaveMaps();
 
     private:
         point current_point;
