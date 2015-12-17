@@ -64,7 +64,7 @@ class CupCollector
 
         void check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next);
         uint64_t getDistance(const point &p) const;
-        void SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
+        std::vector<point> SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
         std::vector<point> WalkLine(vector2D const &line) const;
         point FindNextPointOnLine(const vector2D &line, const point &cur, bool *success = nullptr) const;
         bool IsOutsideMap(const point &p) const;
@@ -80,6 +80,7 @@ class CupCollector
         void SaveWorkspaceMap(std::string name);
         void SaveConfigurationspaceMap(std::string name);
         void SaveWaypointMap(std::string name);
+        void SaveWalkMap(std::string name);
         void SaveWavefrontMap(std::string name);
         void SaveConnectionMap(std::string name);
         void SaveCellMap(std::string name);
@@ -90,6 +91,7 @@ class CupCollector
         bool validateMap();
         void connectNeighbours(size_t id);
         void traverseGraphRec(Waypoint &wp);
+        std::vector<point> SearchGraph(Waypoint &wp);
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.

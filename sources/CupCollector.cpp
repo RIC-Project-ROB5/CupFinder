@@ -70,7 +70,7 @@ CupCollector::CupCollector(Image* map)
     prepareCellDecomposition();
     Cell seedc;
     seedc.upper_left = {2000, 1280};
-    seedc.lower_right = seedc.upper_left + point(0, 10);
+    seedc.lower_right = seedc.upper_left;
     cellDecomposition(seedc, cellid);
     if(debug)
         std::cout << "Created " << cells.size() << " cells." << std::endl;
@@ -170,7 +170,7 @@ bool CupCollector::validateMap()
 }
 
 bool CupCollector::isGraphConnected()
-{//In this function we traverse the entire graph. We do this by using a depth first Search
+{//In this function we traverse the entire graph. We do this by using a first Search
     //Mark all waypoints as unvisited
     for(auto &wp : wayPoints)
         wp.visited = false;
@@ -181,6 +181,7 @@ bool CupCollector::isGraphConnected()
     }
     return true;
 }
+
 void CupCollector::traverseGraphRec(Waypoint &wp)
 {
     wp.visited = true;
@@ -193,8 +194,75 @@ void CupCollector::traverseGraphRec(Waypoint &wp)
     }
 }
 
-void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint, __attribute__((unused))const Waypoint &endpoint, __attribute__((unused))Cell &cell)
-{   //Searches the given cell for cups, collects them, return them to dropoff
+std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
+{
+    wp.visited = true;
+    //For all connections, travel to the if they are unvisited.
+    //if the cell they are connected to are unsearched, search it
+    std::vector<point> walkpath;
+    for(auto &con : wp.connections)
+    {
+        auto &wp_c = wayPoints[con.index];
+        auto &c = con.connection_cell;
+        vector2D con_line(wp.coord, wp_c.coord);
+        if(c == nullptr && !wp_c.visited) //simply go to the cell
+        {
+            auto w = WalkLine(con_line); //get path to waypoint
+            auto next_path = SearchGraph(wp_c); //get path from next recursion
+            //add to our path : the way to the waypoint,
+            //the path traveled further down the graph, and the reverse path from the Cell
+            walkpath.insert(walkpath.end(), w.begin(), w.end());
+            walkpath.insert(walkpath.end(), next_path.begin(), next_path.end());
+            walkpath.insert(walkpath.end(), w.rbegin(), w.rend());
+        }
+        else if(c != nullptr && !wp_c.visited)
+        {
+            //Travel to the cell, but do it through a search of the cell if it haven't been searched.
+            //When returning, just walk in straigh line
+            auto w = WalkLine(con_line); //get path to waypoint
+            std::vector<point> searchpath;
+            if(!c->searched) searchpath = SearchCell(wp, wp_c, *c);
+            else searchpath = w;
+            auto next_path = SearchGraph(wp_c); //get path from next recursion
+            walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
+            walkpath.insert(walkpath.end(), next_path.begin(), next_path.end());
+            walkpath.insert(walkpath.end(), w.rbegin(), w.rend());
+        }
+        else if(c != nullptr && !c->searched && wp_c.visited)
+        {
+            //simply search the cell and return to the same spot.
+            auto searchpath = SearchCell(wp, wp, *c);
+        }
+        else
+        {
+            assert(wp_c.visited);
+            assert(c == nullptr || c->searched);
+        }
+    }
+    return walkpath;
+}
+
+
+std::vector<point> CupCollector::get_path()
+{
+    //Mark all waypoints and cells unvisited
+    for(auto &wp : wayPoints)
+        wp.visited = false;
+    for(auto &c : cells)
+        c.searched = false;
+    auto ret_vec = SearchGraph(wayPoints[0]); //start at waypoint 0
+    //make sure all cells are searchd and all graphs visited (only complains if asserts are enabled)
+    for(auto &wp : wayPoints)
+        assert(wp.visited);
+    for(auto &c : cells)
+        assert(c.searched);
+    return ret_vec;
+}
+
+std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell)
+{
+    cell.searched = true;
+    //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
 
     //Find the nearest corner
@@ -204,6 +272,7 @@ void CupCollector::SearchCell(__attribute__((unused))const Waypoint &startpoint,
     //Cover the cell in a shrinking spiral pattern, untill we get to the middle. For each round, define a new "smaller" cell to cover the next time
 
     //Go to the endpoint.
+    return WalkLine(vector2D(startpoint.coord, endpoint.coord));
 }
 
 std::vector<point> CupCollector::WalkLine(vector2D const &line) const
@@ -1097,6 +1166,46 @@ void CupCollector::SaveWavefrontMap(std::string name)
 
 }
 
+void CupCollector::SaveWalkMap(std::string name)
+{
+    //All is white apart from obstacles.
+    //Walkpath is green.
+    Image walk_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
+    //Save workspace
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            RGB col = {0, 0, 0};
+            switch(workspace[x][y])
+            {
+                case freespace:
+                    col = {255, 255, 255};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case dropoff:
+                    col = {255, 255, 255};
+                    break;
+                case cup:
+                    col = {255, 255, 255};
+                    break;
+                default:
+                    assert(false);
+            }
+            walk_img.setPixel8U(x, y, col.r, col.g, col.b);
+        }
+    }
+    auto path = get_path();
+    for(auto &p : path)
+    {
+        walk_img.setPixel8U(p.x, p.y, 255, 0, 0);
+    }
+    if(debug)
+        std::cout << "Path is " << path.size() << " long." << std::endl;
+    walk_img.saveAsPPM(name);
+
+}
+
 void CupCollector::SaveMaps() {
 
     SaveWaypointMap("waypoints.ppm");
@@ -1105,5 +1214,5 @@ void CupCollector::SaveMaps() {
     SaveWorkspaceMap("workspace.ppm");
     SaveWavefrontMap("wavefront.ppm");
     SaveConfigurationspaceMap("configurationspace.ppm");
-
+    SaveWalkMap("RobotWalk.ppm");
 }
