@@ -22,17 +22,20 @@ int main(int argc, char const *argv[]) {
     string filename(argv[1]);
     cout << "Loading image" << endl;
     Image *map = PPMLoader::load(filename);
-    //Find the cups
+    //Init Cupcollector
     CupCollector CCollector(map);
+    std::cout << "Saving illustrations" << std::endl;
     CCollector.SaveWaypointMap("waypoints.ppm");
     CCollector.SaveCellMap("cells.ppm");
     CCollector.SaveConnectionMap("connections.ppm");
     CCollector.SaveWorkspaceMap("workspace.ppm");
     CCollector.SaveWavefrontMap("wavefront.ppm");
     CCollector.SaveConfigurationspaceMap("configurationspace.ppm");
-    CCollector.SaveSearchedMap("SearchMap.ppm");
+    std::cout << "Finding path" << std::endl;
     auto path = CCollector.get_path();
     CCollector.SaveWalkMap("RobWalkMap.ppm", path);
+    CCollector.SaveSearchedMap("SearchMap.ppm");
+
     std::cout << "Path is " << path.size() << " long." << std::endl;
 
 

@@ -26,9 +26,8 @@ SET( CMAKE_CXX_FLAGS  "	-std=c++11 		\
 			-Wno-unused-variable 	\
 			-pedantic		\
 			-Wunused-variable	\
+			-Ofast			\
 " )
-
-SET(CMAKE_CXX_FLAGS_RELEASE "-Ofast -DNDEBUG")
 
 set (HEADER_DIR "${ROOT}/headers")
 set (HEADER_FILES ${HEADER_DIR}/Image.hpp)

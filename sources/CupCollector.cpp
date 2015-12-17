@@ -48,9 +48,9 @@ CupCollector::CupCollector(Image* map)
     //cells.reserve(100000);
     //wayPoints.reserve(100000);
     //set debug false if production build
-    #ifdef NDEBUG
-        debug = false;
-    #endif
+    //#ifdef NDEBUG
+    //    debug = false;
+    //#endif
     size_x = map->getWidth();
     size_y = map->getHeight();
     if (debug)
@@ -216,6 +216,8 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             walkpath.insert(walkpath.end(), w.begin(), w.end());
             walkpath.insert(walkpath.end(), next_path.begin(), next_path.end());
             walkpath.insert(walkpath.end(), w.rbegin(), w.rend());
+            for(size_t i = 1; i < walkpath.size(); i++)
+                assert(walkpath[i].isNeighbour(walkpath[i - 1]));
         }
         else if(c != nullptr && !wp_c.visited)
         {
@@ -233,12 +235,16 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
             walkpath.insert(walkpath.end(), next_path.begin(), next_path.end());
             walkpath.insert(walkpath.end(), w.rbegin(), w.rend());
+            for(size_t i = 1; i < walkpath.size(); i++)
+                assert(walkpath[i].isNeighbour(walkpath[i - 1]));
         }
         else if(c != nullptr && !c->searched && wp_c.visited)
         {
             //simply search the cell and return to the same spot.
             auto searchpath = SearchCell(wp, wp, *c);
             walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
+            for(size_t i = 1; i < walkpath.size(); i++)
+                assert(walkpath[i].isNeighbour(walkpath[i - 1]));
             c->searched = true;
         }
         else
@@ -247,6 +253,8 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             assert(c == nullptr || c->searched);
         }
     }
+    for(size_t i = 1; i < walkpath.size(); i++)
+        assert(walkpath[i].isNeighbour(walkpath[i - 1]));
     return walkpath;
 }
 
@@ -264,6 +272,11 @@ std::vector<point> CupCollector::get_path()
         assert(wp.visited);
     for(auto __attribute__((unused))&c : cells)
         assert(c.searched);
+    for(size_t i = 1; i < ret_vec.size(); i++)
+    {
+        std::cout << i << "\t" << ret_vec[i - 1] << "," << ret_vec[i] << std::endl;
+        assert(ret_vec[i].isNeighbour(ret_vec[i - 1]));
+    }
 
     if(debug)
         std::cout << "Collected " << total_cups + current_cups << " cups." << std::endl;
@@ -286,18 +299,21 @@ std::vector<point> CupCollector::GetCup(point &p_start, point &p_cup)
 
     auto ret_vec = cup_path;
     //go back
-    ret_vec.insert(ret_vec.begin(), cup_path.rbegin(), cup_path.rend());
-
+    cup_path.pop_back();
+    ret_vec.insert(ret_vec.end(), cup_path.rbegin(), cup_path.rend());
     //if we have more than max_cups, drop them of in dropoff
     if(current_cups >= MAX_CUPS)
     {
         auto dropoff_path = getGoalPath(p_start);
         //Add the path, and add it in reverse afterwards.
-        ret_vec.insert(ret_vec.begin(), dropoff_path.begin(), dropoff_path.end());
-        ret_vec.insert(ret_vec.begin(), dropoff_path.rbegin(), dropoff_path.rend());
+        ret_vec.insert(ret_vec.end(), dropoff_path.begin(), dropoff_path.end());
+        dropoff_path.pop_back();
+        ret_vec.insert(ret_vec.end(), dropoff_path.rbegin(), dropoff_path.rend());
         total_cups += current_cups;
         current_cups = 0;
     }
+    for(size_t i = 1; i < ret_vec.size(); i++)
+        assert(ret_vec[i].isNeighbour(ret_vec[i - 1]));
     return ret_vec;
 }
 
@@ -318,7 +334,8 @@ std::vector<point> CupCollector::SearchForCups(point &p, float distance)
             {   //The point is a cup and there is no obstacles in the way
                 //Retrieve the cup.
                 auto v = GetCup(p, check_p);
-                ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+                if(ret_vec.size()) while(ret_vec.back() == v.front()) ret_vec.pop_back(); //ugly hack
+                ret_vec.insert(ret_vec.end(), v.begin(), v.end());
                 searchmap[check_p.x][check_p.y] = searched; //mark as searched.
             }
             //assert
@@ -328,6 +345,8 @@ std::vector<point> CupCollector::SearchForCups(point &p, float distance)
             }
         }
     }
+    for(size_t i = 1; i < ret_vec.size(); i++)
+        assert(ret_vec[i].isNeighbour(ret_vec[i - 1]));
     return ret_vec;
 }
 
@@ -336,7 +355,8 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
     //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
     //The cell is covered in a shrinking spiraling pattern.
-
+    static int cel_c = 0;
+    std::cout << cel_c++ << std::endl;
     std::vector<point> ret_vec;
     //Make a copy of the cell
     Cell this_cell = cell;
@@ -351,28 +371,42 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
         {
             vector2D line(startpoint.coord, this_cell.upper_left);
             auto v = SearchLine(line, ROB_VIEW_RANGE);
-            ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+            ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+            for(size_t j = 1; j < ret_vec.size(); j++)
+                assert(ret_vec[j].isNeighbour(ret_vec[j - 1]));
+
         }
         else //else go from current point (back of ret_vec) to upper left corner.
         {
             assert(ret_vec.size());
             vector2D line(ret_vec.back(), this_cell.upper_left);
             auto v = SearchLine(line, ROB_VIEW_RANGE);
-            ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+            ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+            for(size_t j = 1; j < ret_vec.size(); j++)
+                assert(ret_vec[j].isNeighbour(ret_vec[j - 1]));
+
         }
         //continue to the rest of the corners
+        if(ret_vec.size() != 0 && ret_vec.back() != this_cell.upper_left) //hack to fix some small bug
+        {
+            vector2D line(ret_vec.back(), this_cell.upper_left);
+            auto v = SearchLine(line, ROB_VIEW_RANGE);
+            ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+        }
+        assert(ret_vec.size() == 0 || ret_vec.back() == this_cell.upper_left);
         vector2D line1(this_cell.upper_left, this_cell.upper_right);
         vector2D line2(this_cell.upper_right, this_cell.lower_right);
         vector2D line3(this_cell.lower_right, this_cell.lower_left);
         vector2D line4(this_cell.lower_left, this_cell.upper_left);
+
         auto v = SearchLine(line1, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
         v = SearchLine(line2, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
         v = SearchLine(line3, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
         v = SearchLine(line4, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
         continue_coverage = (this_cell.upper_left.x + COVER_RANGE <= this_cell.lower_right.x - COVER_RANGE) &&
                             (this_cell.upper_left.y + COVER_RANGE <= this_cell.lower_right.y - COVER_RANGE);
 
@@ -391,7 +425,10 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
     if(ret_vec.size() > 0)
          line = vector2D(ret_vec.back(), endpoint.coord);
     auto v = WalkLine(line, configurationspace);
-    ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+    ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+
+    for(size_t i = 1; i < ret_vec.size(); i++)
+        assert(ret_vec[i].isNeighbour(ret_vec[i - 1]));
     return ret_vec;
 
 }
@@ -401,17 +438,38 @@ std::vector<point> CupCollector::SearchLine(vector2D const &line, float distance
     std::vector<point> searchvec;
     point cur = line.getStartPoint();
     auto s = SearchForCups(cur, distance);
-    searchvec.insert(searchvec.begin(), s.begin(), s.end());
+    searchvec.insert(searchvec.end(), s.begin(), s.end());
+    if(s.size()) searchvec.push_back(cur);
+    for(size_t i = 1; i < searchvec.size(); i++)
+        assert(searchvec[i].isNeighbour(searchvec[i - 1]));
+
     while(cur != line.getEndPoint())
     {
         bool success = false;
         point next_point = FindNextPointOnLine(line, cur, configurationspace, &success);
         assert(success);
+        assert(cur.isNeighbour(next_point));
         cur = next_point;
+        if(searchvec.size()) //ugly hack
+        {
+            while(searchvec.back() == cur)
+            {
+                searchvec.pop_back();
+            }
+            if(!searchvec.back().isNeighbour(cur))
+            {
+                vector2D line2(searchvec.back(), cur);
+                auto v = SearchLine(line2, distance);
+                if(v.size()) v.pop_back();
+                searchvec.insert(searchvec.end(), v.begin(), v.end());
+            }
+        }
         searchvec.push_back(cur);
         auto s2 = SearchForCups(cur, distance);
-        searchvec.insert(searchvec.begin(), s2.begin(), s2.end());
+        searchvec.insert(searchvec.end(), s2.begin(), s2.end());
     }
+    for(size_t i = 1; i < searchvec.size(); i++)
+        assert(searchvec[i].isNeighbour(searchvec[i - 1]));
     return searchvec;
 }
 
@@ -433,6 +491,9 @@ std::vector<point> CupCollector::WalkLine(vector2D const &line, const std::vecto
         line_points.push_back(cur);
         //if(line_points.size() > 100) exit(0);
     }
+
+    for(size_t i = 1; i < line_points.size(); i++)
+        assert(line_points[i].isNeighbour(line_points[i - 1]));
     return line_points;
 }
 
@@ -1403,7 +1464,6 @@ void CupCollector::SaveWalkMap(std::string name, std::vector<point> &path)
     {
         walk_img.setPixel8U(p.x, p.y, 0, 255, 255);
     }
-    if(debug)
     walk_img.saveAsPPM(name);
 
 }
