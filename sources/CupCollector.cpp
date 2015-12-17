@@ -97,6 +97,8 @@ CupCollector::CupCollector(Image* map)
     if (debug)
         std::cout << "Maps have been saved" << std::endl;
 
+    std::cout << "Collected " << total_cups + current_cups << " cups" << std::endl;
+
 }
 
 CupCollector::~CupCollector()
@@ -115,6 +117,7 @@ CupCollector::~CupCollector()
 
 void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
 {
+    int cups = 0;
     int channel = 0; //the map is grayscale, so channel is 0
     for(uint32_t x = 0; x < map->getWidth(); x++)
     {
@@ -132,6 +135,7 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
                     break;
                 case 150:
                     pixeltype = cup;
+                    cups++;
                     break;
                 default:
                     pixeltype = freespace;
@@ -141,6 +145,8 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
         }
         workspace.push_back(y_line);
     }
+    if(debug)
+        std::cout << "Number of cups in map: " << cups << std::endl;
 }
 
 bool CupCollector::validateMap()
@@ -207,7 +213,7 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
         vector2D con_line(wp.coord, wp_c.coord);
         if(c == nullptr && !wp_c.visited) //simply go to the cell
         {
-            auto w = WalkLine(con_line); //get path to waypoint
+            auto w = WalkLine(con_line, configurationspace); //get path to waypoint
             auto next_path = SearchGraph(wp_c); //get path from next recursion
             //add to our path : the way to the waypoint,
             //the path traveled further down the graph, and the reverse path from the Cell
@@ -219,9 +225,13 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
         {
             //Travel to the cell, but do it through a search of the cell if it haven't been searched.
             //When returning, just walk in straigh line
-            auto w = WalkLine(con_line); //get path to waypoint
+            auto w = WalkLine(con_line, configurationspace); //get path to waypoint
             std::vector<point> searchpath;
-            if(!c->searched) searchpath = SearchCell(wp, wp_c, *c);
+            if(!c->searched)
+            {
+                searchpath = SearchCell(wp, wp_c, *c);
+                c->searched = true;
+            }
             else searchpath = w;
             auto next_path = SearchGraph(wp_c); //get path from next recursion
             walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
@@ -232,6 +242,8 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
         {
             //simply search the cell and return to the same spot.
             auto searchpath = SearchCell(wp, wp, *c);
+            walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
+            c->searched = true;
         }
         else
         {
@@ -262,13 +274,13 @@ std::vector<point> CupCollector::get_path()
 bool CupCollector::isblocked(vector2D &line) const
 {   //Check if we can walk along the lines
     if(line.getStartPoint() == line.getEndPoint()) return false;
-    if(WalkLine(line).size() == 0) return true; //Walkline returns false if we can't walk to the point
-    return false;
+    if(WalkLine(line, searchmap).size() > 0) return false; //Walkline returns a empty vec if we can't walk to the point.
+    return true;
 }
 
 std::vector<point> CupCollector::GetCup(point &p_start, point &p_cup)
 {   //Walk towards the cup while it's outside pickup range.
-    auto cup_path = WalkLine(vector2D(p_start, p_cup), ROB_PICKUP_RANGE);
+    auto cup_path = WalkLine(vector2D(p_start, p_cup), configurationspace, ROB_PICKUP_RANGE);
     //pickup the cup
     current_cups++;
 
@@ -289,17 +301,19 @@ std::vector<point> CupCollector::GetCup(point &p_start, point &p_cup)
     return ret_vec;
 }
 
-std::vector<point> CupCollector::SearchForCups(point &p)
-{   //search and collect cups in ROB_VIEW_RANGE
+std::vector<point> CupCollector::SearchForCups(point &p, float distance)
+{   //search and collect cups in distance
     std::vector<point> ret_vec;
-    for(int x = -ROB_VIEW_RANGE; x <= ROB_VIEW_RANGE; x++)
+    for(int x = -int(distance + 1); x <= int(distance + 1); x++)
     {
-        for(int y = -ROB_VIEW_RANGE; y <= ROB_VIEW_RANGE; y++)
+        for(int y = -int(distance + 1); y <= int(distance + 1); y++)
         {
             point check_p = p + point(x, y);
-            if(IsOutsideMap(check_p) || p.GetDistance(check_p) > ROB_VIEW_RANGE) //check if inside map and within range of robot
+            if(IsOutsideMap(check_p) || p.GetDistance(check_p) >= distance) //check if inside map and within range of robot
                 continue;
+
             vector2D line(p, check_p);
+            //if(isblocked(line)) continue;
             if(searchmap[check_p.x][check_p.y] == cup && !isblocked(line))
             {   //The point is a cup and there is no obstacles in the way
                 //Retrieve the cup.
@@ -307,43 +321,112 @@ std::vector<point> CupCollector::SearchForCups(point &p)
                 ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
                 searchmap[check_p.x][check_p.y] = searched; //mark as searched.
             }
+            //assert
             if(searchmap[check_p.x][check_p.y] != obstacle && searchmap[check_p.x][check_p.y] != cup)
+            {
                 searchmap[check_p.x][check_p.y] = searched;
+            }
         }
     }
     return ret_vec;
 }
 
-std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell)
+std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, const Cell &cell)
 {
-    cell.searched = true;
-    //Make a copy of the cell
-    //point corners[4] = {cell.upper_left, cell.upper_right, cell.lower_right, cell.lower_left};
-    //in turns, go to each corner, search allong the way, make them smaller(to cirkel invard).
-    //Stop and go to end when the corners are closer than ROB_VIEW_RANGE fom each other.
-    //First
-
-
     //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
-    //The cell is covered in a shrinking spiraling pattern,
+    //The cell is covered in a shrinking spiraling pattern.
+
+    std::vector<point> ret_vec;
+    //Make a copy of the cell
+    Cell this_cell = cell;
+    //in turns, go to each corner, search allong the way, make them smaller(to cirkel invard).
+    //Stop and go to end when the corners are closer than COVER_RANGE fom each other.
+    bool continue_coverage = true;
+    for(int i = 0; continue_coverage == true; i++)
+    {
+        //std::cout << i << std::endl;
+        //std::cout << this_cell.upper_left << " " << this_cell.lower_right << std::endl;
+        if(i == 0) //first time, go from startpoint to first corner
+        {
+            vector2D line(startpoint.coord, this_cell.upper_left);
+            auto v = SearchLine(line, ROB_VIEW_RANGE);
+            ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        }
+        else //else go from current point (back of ret_vec) to upper left corner.
+        {
+            assert(ret_vec.size());
+            vector2D line(ret_vec.back(), this_cell.upper_left);
+            auto v = SearchLine(line, ROB_VIEW_RANGE);
+            ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        }
+        //continue to the rest of the corners
+        vector2D line1(this_cell.upper_left, this_cell.upper_right);
+        vector2D line2(this_cell.upper_right, this_cell.lower_right);
+        vector2D line3(this_cell.lower_right, this_cell.lower_left);
+        vector2D line4(this_cell.lower_left, this_cell.upper_left);
+        auto v = SearchLine(line1, ROB_VIEW_RANGE);
+        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        v = SearchLine(line2, ROB_VIEW_RANGE);
+        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        v = SearchLine(line3, ROB_VIEW_RANGE);
+        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        v = SearchLine(line4, ROB_VIEW_RANGE);
+        ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+        continue_coverage = (this_cell.upper_left.x + COVER_RANGE <= this_cell.lower_right.x - COVER_RANGE) &&
+                            (this_cell.upper_left.y + COVER_RANGE <= this_cell.lower_right.y - COVER_RANGE);
+
+        //Make the cell smaller according to COVER_RANGE
+        this_cell.upper_left = point(min(this_cell.upper_left.x + COVER_RANGE, this_cell.lower_right.x),
+                                     min(this_cell.upper_left.y + COVER_RANGE, this_cell.lower_right.y));
+        this_cell.lower_right = point(max(this_cell.lower_right.x - COVER_RANGE, this_cell.upper_left.x),
+                                      max(this_cell.lower_right.y - COVER_RANGE, this_cell.upper_left.y));
+        this_cell.upper_right = {this_cell.lower_right.x, this_cell.upper_left.y};
+        this_cell.lower_left = {this_cell.upper_left.x, this_cell.lower_right.y};
+        //check if this is the last time we should cover the cell.
+    }
+
+    vector2D line(startpoint.coord, endpoint.coord);
     //Go to the endpoint.
-    return WalkLine(vector2D(startpoint.coord, endpoint.coord));
+    if(ret_vec.size() > 0)
+         line = vector2D(ret_vec.back(), endpoint.coord);
+    auto v = WalkLine(line, configurationspace);
+    ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+    return ret_vec;
+
 }
 
+std::vector<point> CupCollector::SearchLine(vector2D const &line, float distance)
+{
+    std::vector<point> searchvec;
+    point cur = line.getStartPoint();
+    auto s = SearchForCups(cur, distance);
+    searchvec.insert(searchvec.begin(), s.begin(), s.end());
+    while(cur != line.getEndPoint())
+    {
+        bool success = false;
+        point next_point = FindNextPointOnLine(line, cur, configurationspace, &success);
+        assert(success);
+        cur = next_point;
+        searchvec.push_back(cur);
+        auto s2 = SearchForCups(cur, distance);
+        searchvec.insert(searchvec.begin(), s2.begin(), s2.end());
+    }
+    return searchvec;
+}
 
-std::vector<point> CupCollector::WalkLine(vector2D const &line, float distance) const
+std::vector<point> CupCollector::WalkLine(vector2D const &line, const std::vector< std::vector< mapSpace> > &map, float distance) const
 {   //Walk along the line from startpoint to endpoint, or untill within distance from endpoint
     //There should be a clear path, e.g. no obstacles.
     //std::cout << "[" << line.getStartPoint().x << ", " << line.getStartPoint().y << "]-[" <<
     //line.getEndPoint().x << "," << line.getEndPoint().y << "]" <<std::endl;
     std::vector<point> line_points;
     point cur = line.getStartPoint();
-    line_points.push_back(cur);
+    //line_points.push_back(cur); //don't include first point, as we are already on it
     while(cur != line.getEndPoint() && cur.GetDistance(line.getEndPoint()) > distance )
     {
         bool success = false;
-        point next_point = FindNextPointOnLine(line, cur, &success);
+        point next_point = FindNextPointOnLine(line, cur, map, &success);
         if(!success) return std::vector<point>();
         cur = next_point;
         //std::cout << cur << std::endl;
@@ -353,7 +436,7 @@ std::vector<point> CupCollector::WalkLine(vector2D const &line, float distance) 
     return line_points;
 }
 
-point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur, bool *success ) const
+point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur, const std::vector< std::vector< mapSpace> > &map, bool *success) const
 {
     //check all 8 directions collect the ones which are closer to the endpoint of the line
     // to the endpoint of the linethan the current.
@@ -364,7 +447,7 @@ point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur, 
     for(uint8_t i = 0; i < sizeof(neighbours) / sizeof(neighbours[i]); i++)
     {
         point this_point = cur + neighbours[i];
-        if(IsOutsideMap(this_point) || IsObstacleCS(this_point)) continue;
+        if(IsOutsideMap(this_point) || IsObstacle(this_point, map)) continue;
 
         if(this_point.GetDistance(line.getEndPoint()) < curdistance)
         {   //select the wanted point as the one closest to the straight line to end.
@@ -419,24 +502,18 @@ point CupCollector::get_next_point(const point &curpoint, bool *success) const
 
 bool CupCollector::IsOutsideMap(const point &p) const
 {
-    if(p.y < 0 || p.x < 0 || p.y > size_y || p.x > size_x)
+    if(p.y < 0 || p.x < 0 || p.y >= size_y || p.x >= size_x)
         return true;
     return false;
 }
 
-bool CupCollector::IsObstacleWS(const point &p) const
+bool CupCollector::IsObstacle(const point &p, const std::vector< std::vector< mapSpace> > &map) const
 {
-    if(workspace[p.x][p.y] == obstacle)
+    if(map[p.x][p.y] == obstacle)
         return true;
     return false;
 }
 
-bool CupCollector::IsObstacleCS(const point &p) const
-{
-    if(configurationspace[p.x][p.y] == obstacle)
-        return true;
-    return false;
-}
 
 void CupCollector::CreateConfigurationspaceMap()
 // Creates a configurationspace map from input workspace map
@@ -457,8 +534,10 @@ void CupCollector::CreateConfigurationspaceMap()
     std::vector< point > obstacles_filtered;
     for (size_t index = 0; index < obstacles_unfiltered.size(); index++) {
       for (int32_t k = 0; k < 8; k++) {
-        if (!IsObstacleWS(obstacles_unfiltered[index]+neighbours[k])) {
-          obstacles_filtered.push_back(point(obstacles_unfiltered[index].x,obstacles_unfiltered[index].y));
+        point tmp_point = obstacles_unfiltered[index]+neighbours[k];
+        if(IsOutsideMap(tmp_point)) continue;
+        if (!IsObstacle(tmp_point, workspace)) {
+          obstacles_filtered.push_back(point(obstacles_unfiltered[index]));
           break;
         }
       }
@@ -988,7 +1067,7 @@ void CupCollector::findWaypoints(int64_t __attribute__((unused))id){
                 tmp.index = j;
                 tmp.connection_cell = &(cells[id]);
                 vector2D line(wayPoints[i].coord, wayPoints[j].coord);
-                tmp.cost = WalkLine(line).size();
+                tmp.cost = WalkLine(line, configurationspace).size();
                 wayPoints[i].connections.push_back(tmp);
             }
         }
@@ -1018,7 +1097,7 @@ void CupCollector::connectNeighbours(size_t id)
             tmp.index = i;
             tmp.connection_cell = nullptr;
             vector2D line(wayPoints[id].coord, wayPoints[i].coord);
-            tmp.cost = WalkLine(line).size();
+            tmp.cost = WalkLine(line, configurationspace).size();
             wayPoints[id].connections.push_back(tmp);
         }
     }
@@ -1150,7 +1229,7 @@ void CupCollector::SaveConnectionMap(std::string name)
         {
             vector2D line(wp.coord, wayPoints[con.index].coord);
             //std::cout << line.getStartPoint() << " " << line.getEndPoint() << std::endl;
-            for(auto &p : WalkLine(line))
+            for(auto &p : WalkLine(line, configurationspace))
                 connections_img.setPixel8U(p.x, p.y, 0, 0, 255);
         }
     }
@@ -1260,6 +1339,39 @@ void CupCollector::SaveWavefrontMap(std::string name)
 
 }
 
+void CupCollector::SaveSearchedMap(std::string name)
+{
+    //All is white apart from obstacles.
+    //Walkpath is green.
+    Image search_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
+
+    for (int32_t x = 0; x < size_x; x++) {
+        for (int32_t y = 0; y < size_y; y++) {
+            RGB col = {0, 0, 0};
+            switch(searchmap[x][y])
+            {
+                case freespace:
+                    col = {255, 255, 255};
+                    break;
+                case obstacle:
+                    col = {0, 0, 0};
+                    break;
+                case searched:
+                    col = {255, 0, 0};
+                    break;
+                case cup:
+                    col = {0, 255, 0};
+                    std::cout << point(x,y) << std::endl;
+                    break;
+                default:
+                    col = {255, 255, 255};
+            }
+            search_img.setPixel8U(x, y, col.r, col.g, col.b);
+        }
+    }
+    search_img.saveAsPPM(name);
+
+}
 void CupCollector::SaveWalkMap(std::string name)
 {
     //All is white apart from obstacles.
@@ -1300,6 +1412,7 @@ void CupCollector::SaveWalkMap(std::string name)
 
 }
 
+
 void CupCollector::SaveMaps() {
 
     SaveWaypointMap("waypoints.ppm");
@@ -1309,4 +1422,5 @@ void CupCollector::SaveMaps() {
     SaveWavefrontMap("wavefront.ppm");
     SaveConfigurationspaceMap("configurationspace.ppm");
     SaveWalkMap("RobotWalk.ppm");
+    SaveSearchedMap("SearchMap.ppm");
 }

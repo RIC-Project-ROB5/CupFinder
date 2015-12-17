@@ -14,6 +14,7 @@
 #define ROB_RADIUS  (0.4 * PIXEL_PER_METER)
 #define ROB_VIEW_RANGE (2 * PIXEL_PER_METER)
 #define ROB_PICKUP_RANGE (1 * PIXEL_PER_METER)
+#define COVER_RANGE ROB_VIEW_RANGE //int(ROB_RADIUS) //How close the robot should circle the cells.
 #define MAX_CUPS 20
 
 //Forward declare structs and classes
@@ -66,13 +67,12 @@ class CupCollector
 
         void check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next);
         uint64_t getDistance(const point &p) const;
-        std::vector<point> SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
-        std::vector<point> WalkLine(vector2D const &line, float distance = std::numeric_limits<float>::infinity()) const;
-        point FindNextPointOnLine(const vector2D &line, const point &cur, bool *success = nullptr) const;
+        std::vector<point> SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, const Cell &cell);
+        std::vector<point> WalkLine(vector2D const &line, const std::vector< std::vector< mapSpace> > &map, float distance = -1) const;
+        point FindNextPointOnLine(const vector2D &line, const point &cur, const std::vector< std::vector< mapSpace> > &map, bool *success = nullptr) const;
         bool IsOutsideMap(const point &p) const;
         void CreateWorkspaceMap(rw::sensor::Image* map);
-        bool IsObstacleWS(const point &p) const;
-        bool IsObstacleCS(const point &p) const;
+        bool IsObstacle(const point &p, const std::vector< std::vector< mapSpace> > &map) const;
         void CreateConfigurationspaceMap();
         void compute_wavefront(); //(pre)computes the wavefront
         void cellDecomposition();
@@ -83,6 +83,7 @@ class CupCollector
         void SaveConfigurationspaceMap(std::string name);
         void SaveWaypointMap(std::string name);
         void SaveWalkMap(std::string name);
+        void SaveSearchedMap(std::string name);
         void SaveWavefrontMap(std::string name);
         void SaveConnectionMap(std::string name);
         void SaveCellMap(std::string name);
@@ -98,7 +99,9 @@ class CupCollector
         point get_next_point(const point &curpoint, bool *success) const;
         bool isblocked(vector2D &line) const;
         std::vector<point> GetCup(point &p_start, point &p_cup);
-        std::vector<point> SearchForCups(point &p);
+        std::vector<point> SearchForCups(point &p, float distance);
+        std::vector<point> SearchLine(vector2D const &line, float distance);
+
 
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
