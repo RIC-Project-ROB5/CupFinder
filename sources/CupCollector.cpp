@@ -317,7 +317,8 @@ void CupCollector::ExpandPixel(const point p)
         point expand_point = p + expand_points[i];
         if(!IsOutsideMap(expand_point))
         {
-            configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = obstacle;
+            //assert(configurationspace[expand_point.x][expand_point.y] != cup);
+            configurationspace[expand_point.x][expand_point.y] = obstacle;
         }
     }
 }
