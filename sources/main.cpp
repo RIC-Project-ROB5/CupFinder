@@ -23,7 +23,7 @@ int main(int argc, char const *argv[]) {
     cout << "Loading image" << endl;
     Image *map = PPMLoader::load(filename);
     //Init Cupcollector
-    CupCollector CCollector(map);
+    CupCollector CCollector(map, 1);
     std::cout << "Saving illustrations" << std::endl;
     CCollector.SaveWaypointMap("waypoints.ppm");
     CCollector.SaveCellMap("cells.ppm");

@@ -1,6 +1,7 @@
 #include "CupCollector.hpp"
 #include <cassert>
 #include <cstdlib>
+#include <algorithm>
 
 using namespace std;
 using namespace rw::sensor;
@@ -42,33 +43,28 @@ RGB mapcolour(uint64_t value, uint64_t max)
 }
 
 
-CupCollector::CupCollector(Image* map)
+CupCollector::CupCollector(Image* map, bool _verbose)
 {
+    verbose = _verbose;
     //Save image dimensions
-    //cells.reserve(100000);
-    //wayPoints.reserve(100000);
-    //set debug false if production build
-    //#ifdef NDEBUG
-    //    debug = false;
-    //#endif
     size_x = map->getWidth();
     size_y = map->getHeight();
-    if (debug)
+    if(verbose)
         std::cout << "Image size is " << size_x << ", " << size_y << std::endl;
 
     //Convert image into mapspace map of the workspace
     CreateWorkspaceMap(map);
-    if (debug)
+    if(verbose)
         std::cout << "Workspace created" << std::endl;
     //copy workspace map into searchmap
     searchmap = workspace;
     //Convert workspace into configurationspace
     CreateConfigurationspaceMap();
-    if (debug)
+    if(verbose)
         std::cout << "Configurationspace created" << std::endl;
 
     compute_wavefront();
-    if (debug)
+    if(verbose)
         std::cout << "Wavefront created" << std::endl;
 
     prepareCellDecomposition();
@@ -76,7 +72,7 @@ CupCollector::CupCollector(Image* map)
     seedc.upper_left = {2000, 1280};
     seedc.lower_right = seedc.upper_left;
     cellDecomposition(seedc, cellid);
-    if(debug)
+    if(verbose)
         std::cout << "Created " << cells.size() << " cells." << std::endl;
     //set the right id's in the cell decomposition map
     cleanCellMap();
@@ -86,14 +82,14 @@ CupCollector::CupCollector(Image* map)
         std::cout << "Generated waypoint map is invalid, bailing out" << std::endl;
         exit(1);
     }
-    if(debug)
+    if(verbose)
         std::cout << "Generated waypoint map is valid" << std::endl;
     if(!isGraphConnected())
     {
         std::cout << "Not all generated waypoints are connected, bailing out" << std::endl;
         exit(1);
     }
-    if(debug)
+    if(verbose)
         std::cout << "All generated waypoints are connected." << std::endl;
 }
 
@@ -141,7 +137,7 @@ void CupCollector::CreateWorkspaceMap(rw::sensor::Image* map)
         }
         workspace.push_back(y_line);
     }
-    if(debug)
+    if(verbose)
         std::cout << "Number of cups in map: " << cups << std::endl;
 }
 
@@ -196,6 +192,19 @@ void CupCollector::traverseGraphRec(Waypoint &wp)
     }
 }
 
+void CupCollector::add_paths(std::vector<point> &v1, std::vector<point> &v2)
+{   //Adds the two paths in the vectors, and applies some hacks to make it continues
+    while(v1.size() && v2.size() && v1.back() == v2.front()) v1.pop_back(); //remove double points
+    if(v1.size() && v2.size() && !(v1.back().isNeighbour(v2.front()))) //make continues
+    {
+        vector2D line(v1.back(), v2.front());
+        auto w = SearchLine(line, ROB_VIEW_RANGE);
+        w.pop_back();
+        v1.insert(v1.end(), w.begin(), w.end());
+    }
+    v1.insert(v1.end(), v2.begin(), v2.end());
+}
+
 std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
 {
     wp.visited = true;
@@ -213,11 +222,10 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             auto next_path = SearchGraph(wp_c); //get path from next recursion
             //add to our path : the way to the waypoint,
             //the path traveled further down the graph, and the reverse path from the Cell
-            walkpath.insert(walkpath.end(), w.begin(), w.end());
-            walkpath.insert(walkpath.end(), next_path.begin(), next_path.end());
-            walkpath.insert(walkpath.end(), w.rbegin(), w.rend());
-            for(size_t i = 1; i < walkpath.size(); i++)
-                assert(walkpath[i].isNeighbour(walkpath[i - 1]));
+            add_paths(walkpath, w);
+            add_paths(walkpath, next_path);
+            std::reverse(w.begin(), w.end());
+            add_paths(walkpath, w);
         }
         else if(c != nullptr && !wp_c.visited)
         {
@@ -232,17 +240,16 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             }
             else searchpath = w;
             auto next_path = SearchGraph(wp_c); //get path from next recursion
-            walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
-            walkpath.insert(walkpath.end(), next_path.begin(), next_path.end());
-            walkpath.insert(walkpath.end(), w.rbegin(), w.rend());
-            for(size_t i = 1; i < walkpath.size(); i++)
-                assert(walkpath[i].isNeighbour(walkpath[i - 1]));
+            add_paths(walkpath, searchpath);
+            add_paths(walkpath, next_path);
+            std::reverse(w.begin(), w.end());
+            add_paths(walkpath, w);
         }
         else if(c != nullptr && !c->searched && wp_c.visited)
         {
             //simply search the cell and return to the same spot.
             auto searchpath = SearchCell(wp, wp, *c);
-            walkpath.insert(walkpath.end(), searchpath.begin(), searchpath.end());
+            add_paths(walkpath, searchpath);
             for(size_t i = 1; i < walkpath.size(); i++)
                 assert(walkpath[i].isNeighbour(walkpath[i - 1]));
             c->searched = true;
@@ -253,6 +260,10 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             assert(c == nullptr || c->searched);
         }
     }
+    bool fail = false;
+    for(size_t i = 1; i < walkpath.size(); i++)
+        if(!walkpath[i].isNeighbour(walkpath[i - 1])){ fail = true; std::cout << i << std::endl;}
+    if(fail) for(auto &p : walkpath) std::cout << p << std::endl;
     for(size_t i = 1; i < walkpath.size(); i++)
         assert(walkpath[i].isNeighbour(walkpath[i - 1]));
     return walkpath;
@@ -272,13 +283,12 @@ std::vector<point> CupCollector::get_path()
         assert(wp.visited);
     for(auto __attribute__((unused))&c : cells)
         assert(c.searched);
-    for(size_t i = 1; i < ret_vec.size(); i++)
+    for(size_t i = 1; i < ret_vec.size(); i++) //make sure path is continues.
     {
-        std::cout << i << "\t" << ret_vec[i - 1] << "," << ret_vec[i] << std::endl;
         assert(ret_vec[i].isNeighbour(ret_vec[i - 1]));
     }
 
-    if(debug)
+    if(verbose)
         std::cout << "Collected " << total_cups + current_cups << " cups." << std::endl;
 
     return ret_vec;
@@ -355,8 +365,6 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
     //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
     //The cell is covered in a shrinking spiraling pattern.
-    static int cel_c = 0;
-    std::cout << cel_c++ << std::endl;
     std::vector<point> ret_vec;
     //Make a copy of the cell
     Cell this_cell = cell;
@@ -588,7 +596,7 @@ void CupCollector::CreateConfigurationspaceMap()
           obstacles_unfiltered.push_back(point(x,y));
       }
     }
-    if (debug)
+    if(verbose)
         std::cout << "There are " << obstacles_unfiltered.size() << " obstacle pixels in the map" << std::endl;
 
     /* Filter vector only to include edges (not 'internal' obstacels) */
@@ -603,7 +611,7 @@ void CupCollector::CreateConfigurationspaceMap()
         }
       }
     }
-    if (debug)
+    if(verbose)
         std::cout << "There are " << obstacles_filtered.size() << " filtered obstacle pixels in the map" << std::endl;
 
     /* Create configurationspace from workspace and expand the filtered obstacles */
@@ -1173,7 +1181,7 @@ void CupCollector::graphConnecting(){
     {
         connectNeighbours(i);
     }
-    if(debug)
+    if(verbose)
         std::cout << "Created " << wayPoints.size() << " waypoints." << std::endl;
 }
 

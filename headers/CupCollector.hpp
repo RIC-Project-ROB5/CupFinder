@@ -93,7 +93,7 @@ class CupCollector
         std::vector<point> GetCup(point &p_start, point &p_cup);
         std::vector<point> SearchForCups(point &p, float distance);
         std::vector<point> SearchLine(vector2D const &line, float distance);
-
+        void add_paths(std::vector<point> &v1, std::vector<point> &v2);
 
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
@@ -107,7 +107,7 @@ class CupCollector
         void SaveConnectionMap(std::string name);
         void SaveCellMap(std::string name);
 
-        CupCollector(rw::sensor::Image *map);
+        CupCollector(rw::sensor::Image *map, bool verbose);
         ~CupCollector();
 
     private:
@@ -126,6 +126,6 @@ class CupCollector
         int64_t cellid = 2;
         uint64_t **wavefront = nullptr; //the wavefront map
 
-        bool debug = true;
+        bool verbose;
 
 };
