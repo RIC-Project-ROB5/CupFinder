@@ -312,13 +312,14 @@ void CupCollector::CreateConfigurationspaceMap()
 
 void CupCollector::ExpandPixel(const point p)
 {
-    if (!IsOutsideMap(p))
-        for (size_t i = 0; i < 68; i++)
+    for (size_t i = 0; i < 68; i++)
+    {
+        point expand_point = p + expand_points[i];
+        if(!IsOutsideMap(expand_point))
+        {
             configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = obstacle;
-    else
-        for (size_t i = 0; i < 68; i++)
-            if (p.x+expand_points[i].x < size_x and p.x-expand_points[i].x >= 0 and p.y+expand_points[i].y < size_y and p.y-expand_points[i].y >= 0)
-                configurationspace[p.x + expand_points[i].x][p.y + expand_points[i].y] = obstacle;
+        }
+    }
 }
 
 void CupCollector::compute_wavefront()
