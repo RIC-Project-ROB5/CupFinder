@@ -172,7 +172,7 @@ public:
      */
     void setImageData(char* data)
     {
-        if (!_imageData) delete _imageData;
+        if (!_imageData) delete[] _imageData;
         _imageData = data;
     }
     ;

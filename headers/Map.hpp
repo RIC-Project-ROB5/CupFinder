@@ -5,4 +5,5 @@ enum mapSpace
   obstacle = 1,
   cup     = 2,
   dropoff = 3,
+  searched = 4,
 };

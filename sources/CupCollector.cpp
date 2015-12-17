@@ -1,5 +1,4 @@
 #include "CupCollector.hpp"
-#include <limits>
 #include <cassert>
 #include <cstdlib>
 
@@ -57,7 +56,8 @@ CupCollector::CupCollector(Image* map)
     CreateWorkspaceMap(map);
     if (debug)
         std::cout << "Workspace created" << std::endl;
-
+    //copy workspace map into searchmap
+    searchmap = workspace;
     //Convert workspace into configurationspace
     CreateConfigurationspaceMap();
     if (debug)
@@ -259,31 +259,88 @@ std::vector<point> CupCollector::get_path()
     return ret_vec;
 }
 
+bool CupCollector::isblocked(vector2D &line) const
+{   //Check if we can walk along the lines
+    if(line.getStartPoint() == line.getEndPoint()) return false;
+    if(WalkLine(line).size() == 0) return true; //Walkline returns false if we can't walk to the point
+    return false;
+}
+
+std::vector<point> CupCollector::GetCup(point &p_start, point &p_cup)
+{   //Walk towards the cup while it's outside pickup range.
+    auto cup_path = WalkLine(vector2D(p_start, p_cup), ROB_PICKUP_RANGE);
+    //pickup the cup
+    current_cups++;
+
+    auto ret_vec = cup_path;
+    //go back
+    ret_vec.insert(ret_vec.begin(), cup_path.rbegin(), cup_path.rend());
+
+    //if we have more than max_cups, drop them of in dropoff
+    if(current_cups >= MAX_CUPS)
+    {
+        auto dropoff_path = getGoalPath(p_start);
+        //Add the path, and add it in reverse afterwards.
+        ret_vec.insert(ret_vec.begin(), dropoff_path.begin(), dropoff_path.end());
+        ret_vec.insert(ret_vec.begin(), dropoff_path.rbegin(), dropoff_path.rend());
+        total_cups += current_cups;
+        current_cups = 0;
+    }
+    return ret_vec;
+}
+
+std::vector<point> CupCollector::SearchForCups(point &p)
+{   //search and collect cups in ROB_VIEW_RANGE
+    std::vector<point> ret_vec;
+    for(int x = -ROB_VIEW_RANGE; x <= ROB_VIEW_RANGE; x++)
+    {
+        for(int y = -ROB_VIEW_RANGE; y <= ROB_VIEW_RANGE; y++)
+        {
+            point check_p = p + point(x, y);
+            if(IsOutsideMap(check_p) || p.GetDistance(check_p) > ROB_VIEW_RANGE) //check if inside map and within range of robot
+                continue;
+            vector2D line(p, check_p);
+            if(searchmap[check_p.x][check_p.y] == cup && !isblocked(line))
+            {   //The point is a cup and there is no obstacles in the way
+                //Retrieve the cup.
+                auto v = GetCup(p, check_p);
+                ret_vec.insert(ret_vec.begin(), v.begin(), v.end());
+                searchmap[check_p.x][check_p.y] = searched; //mark as searched.
+            }
+            if(searchmap[check_p.x][check_p.y] != obstacle && searchmap[check_p.x][check_p.y] != cup)
+                searchmap[check_p.x][check_p.y] = searched;
+        }
+    }
+    return ret_vec;
+}
+
 std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell)
 {
     cell.searched = true;
+    //Make a copy of the cell
+    //point corners[4] = {cell.upper_left, cell.upper_right, cell.lower_right, cell.lower_left};
+    //in turns, go to each corner, search allong the way, make them smaller(to cirkel invard).
+    //Stop and go to end when the corners are closer than ROB_VIEW_RANGE fom each other.
+    //First
+
+
     //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
-
-    //Find the nearest corner
-
-    //Go to that, find out which direction we are going.
-
-    //Cover the cell in a shrinking spiral pattern, untill we get to the middle. For each round, define a new "smaller" cell to cover the next time
-
+    //The cell is covered in a shrinking spiraling pattern,
     //Go to the endpoint.
     return WalkLine(vector2D(startpoint.coord, endpoint.coord));
 }
 
-std::vector<point> CupCollector::WalkLine(vector2D const &line) const
-{   //Walk along the line from startpoint to endpoint
+
+std::vector<point> CupCollector::WalkLine(vector2D const &line, float distance) const
+{   //Walk along the line from startpoint to endpoint, or untill within distance from endpoint
     //There should be a clear path, e.g. no obstacles.
     //std::cout << "[" << line.getStartPoint().x << ", " << line.getStartPoint().y << "]-[" <<
     //line.getEndPoint().x << "," << line.getEndPoint().y << "]" <<std::endl;
     std::vector<point> line_points;
     point cur = line.getStartPoint();
     line_points.push_back(cur);
-    while(cur != line.getEndPoint())
+    while(cur != line.getEndPoint() && cur.GetDistance(line.getEndPoint()) > distance )
     {
         bool success = false;
         point next_point = FindNextPointOnLine(line, cur, &success);
@@ -321,6 +378,43 @@ point CupCollector::FindNextPointOnLine(const vector2D &line, const point &cur, 
     }
     if(success != nullptr && closestpoint == point(-1, -1)) *success = false;
     return closestpoint;
+}
+
+std::vector<point> CupCollector::getGoalPath(const point &start) const
+{
+  std::vector<point> path;
+  path.push_back(start);
+  while(getDistance(path.back()) != 1 && getDistance(path.back()) != 2) //continue until we are either in an obstacle or at the goal
+  {
+    bool success;
+    point next_point = get_next_point(path.back(), &success);
+    if(success) path.push_back(next_point);
+    else break;
+  }
+  return path;
+}
+
+point CupCollector::get_next_point(const point &curpoint, bool *success) const
+{
+  for(uint8_t i = 0; i < sizeof(neighbours) / sizeof(neighbours[i]); i++) //go through all possible neighbours
+  {
+    //Check if we are out of bounds
+    auto neighbour = curpoint + neighbours[i];
+    if(neighbour.y < 0 || neighbour.y > size_y - 1 ||
+        neighbour.x < 0 || neighbour.x > size_x - 1)
+    {
+      continue;
+    }
+    if(getDistance(neighbour) < getDistance(curpoint) && getDistance(neighbour) != 1)
+    {
+      *success = true;
+      return neighbour;
+    }
+  }
+  //if we didn't find a point, we are probably in an obstacle
+  //set success to false and return current point
+  *success = false;
+  return curpoint;
 }
 
 bool CupCollector::IsOutsideMap(const point &p) const
@@ -1198,7 +1292,7 @@ void CupCollector::SaveWalkMap(std::string name)
     auto path = get_path();
     for(auto &p : path)
     {
-        walk_img.setPixel8U(p.x, p.y, 255, 0, 0);
+        walk_img.setPixel8U(p.x, p.y, 0, 255, 255);
     }
     if(debug)
         std::cout << "Path is " << path.size() << " long." << std::endl;

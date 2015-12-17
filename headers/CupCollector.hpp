@@ -7,6 +7,8 @@
 #include <vector>
 #include <list>
 #include <iostream>
+#include <limits>
+
 
 #define PIXEL_PER_METER 10
 #define ROB_RADIUS  (0.4 * PIXEL_PER_METER)
@@ -65,7 +67,7 @@ class CupCollector
         void check_neighbour(const point &this_point, const point &neighbour, std::vector<point> &expand_points_next);
         uint64_t getDistance(const point &p) const;
         std::vector<point> SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, Cell &cell);
-        std::vector<point> WalkLine(vector2D const &line) const;
+        std::vector<point> WalkLine(vector2D const &line, float distance = std::numeric_limits<float>::infinity()) const;
         point FindNextPointOnLine(const vector2D &line, const point &cur, bool *success = nullptr) const;
         bool IsOutsideMap(const point &p) const;
         void CreateWorkspaceMap(rw::sensor::Image* map);
@@ -92,6 +94,12 @@ class CupCollector
         void connectNeighbours(size_t id);
         void traverseGraphRec(Waypoint &wp);
         std::vector<point> SearchGraph(Waypoint &wp);
+        std::vector<point> getGoalPath(const point &start) const;
+        point get_next_point(const point &curpoint, bool *success) const;
+        bool isblocked(vector2D &line) const;
+        std::vector<point> GetCup(point &p_start, point &p_cup);
+        std::vector<point> SearchForCups(point &p);
+
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
         //the collection starts at one of the drop of areas.
@@ -108,6 +116,7 @@ class CupCollector
         uint32_t total_cups = 0;
         std::vector< point > move_path;
         std::vector< std::vector< mapSpace> > workspace;
+        std::vector< std::vector< mapSpace> > searchmap;
         std::vector< std::vector< mapSpace> > configurationspace;
         std::vector< std::vector< int64_t > > cellDecompMap;
         std::vector< Cell > cells;
