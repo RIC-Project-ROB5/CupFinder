@@ -604,47 +604,27 @@ void CupCollector::CreateConfigurationspaceMap()
 // Saves configurationspace map as private variable configurationspace
 {
     /* Find the coordinates for all obstacles and save these in a vector */
+    configurationspace = workspace;
     std::vector< point > obstacles_unfiltered;
     for (int32_t x = 0; x < size_x; x++) {
       for (int32_t y = 0; y < size_y; y++) {
         if (workspace[x][y] == obstacle)
-          obstacles_unfiltered.push_back(point(x,y));
+          ExpandPixel(point(x, y));
       }
-    }
-    if(verbose)
-        std::cout << "There are " << obstacles_unfiltered.size() << " obstacle pixels in the map" << std::endl;
-
-    /* Filter vector only to include edges (not 'internal' obstacels) */
-    std::vector< point > obstacles_filtered;
-    for (size_t index = 0; index < obstacles_unfiltered.size(); index++) {
-      for (int32_t k = 0; k < 8; k++) {
-        point tmp_point = obstacles_unfiltered[index]+neighbours[k];
-        if(IsOutsideMap(tmp_point)) continue;
-        if (!IsObstacle(tmp_point, workspace)) {
-          obstacles_filtered.push_back(point(obstacles_unfiltered[index]));
-          break;
-        }
-      }
-    }
-    if(verbose)
-        std::cout << "There are " << obstacles_filtered.size() << " filtered obstacle pixels in the map" << std::endl;
-
-    /* Create configurationspace from workspace and expand the filtered obstacles */
-    configurationspace = workspace;
-    for (size_t index = 0; index < obstacles_filtered.size(); index++) {
-        ExpandPixel(obstacles_filtered[index]);
     }
 }
 
 void CupCollector::ExpandPixel(const point p)
 {
-    for (size_t i = 0; i < 68; i++)
+    for(int x = -ROB_RADIUS; x <= ROB_RADIUS; x++)
     {
-        point expand_point = p + expand_points[i];
-        if(!IsOutsideMap(expand_point))
+        for(int y = -ROB_RADIUS; y <= ROB_RADIUS; y++)
         {
-            //assert(configurationspace[expand_point.x][expand_point.y] != cup);
-            configurationspace[expand_point.x][expand_point.y] = obstacle;
+            point expand_point = p + point(x,y);
+            if(!IsOutsideMap(expand_point) && p.GetDistance(expand_point) <= ROB_RADIUS)
+            {
+                configurationspace[expand_point.x][expand_point.y] = obstacle;
+            }
         }
     }
 }
