@@ -1456,6 +1456,13 @@ void CupCollector::SaveSearchedMap(std::string name)
 }
 void CupCollector::SaveWalkMap(std::string name, std::vector<point> &path)
 {
+    //clean the decomp map, and use it for plotting walk
+    int64_t max_path = 0;
+    for(auto &y_line : cellDecompMap)
+        for(auto &pixel : y_line)
+            pixel = 0;
+    for(auto &p : path)
+        max_path = max(max_path, ++cellDecompMap[p.x][p.y]);
     //All is white apart from obstacles.
     //Walkpath is green.
     Image walk_img(size_x, size_y, Image::ColorCode::RGB, Image::PixelDepth::Depth8U); //image object for plotting the workspace
@@ -1485,7 +1492,11 @@ void CupCollector::SaveWalkMap(std::string name, std::vector<point> &path)
     }
     for(auto &p : path)
     {
-        walk_img.setPixel8U(p.x, p.y, 0, 255, 255);
+        RGB col;
+        col.r = 0;
+        col.g = 255 - uint8_t((200. / max_path) * cellDecompMap[p.x][p.y]);
+        col.b = 255 - uint8_t((200. / max_path) * cellDecompMap[p.x][p.y]);
+        walk_img.setPixel8U(p.x, p.y, col.r, col.g, col.b);
     }
     walk_img.saveAsPPM(name);
 
