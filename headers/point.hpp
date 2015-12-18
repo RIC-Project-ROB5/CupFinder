@@ -1,5 +1,6 @@
 #pragma once
 #include <ostream>
+#include <cmath>
 class point
 {
   public:
@@ -29,7 +30,13 @@ class point
       this->y += p.y;
   }
 
-  float GetDistance(const point &p) const;
+  float GetDistance(const point &p) const
+  {
+      auto x_dif = this->x - p.x;
+      auto y_dif = this->y - p.y;
+      return sqrt(x_dif * x_dif + y_dif * y_dif);
+  }
+
   static float GetDistance(const point p1, const point p2);
   bool isNeighbour(const point &p);
 };
