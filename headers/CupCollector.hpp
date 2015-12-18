@@ -14,7 +14,7 @@
 #define ROB_RADIUS  (0.4 * PIXEL_PER_METER)
 #define ROB_VIEW_RANGE (2 * PIXEL_PER_METER)
 #define ROB_PICKUP_RANGE (1 * PIXEL_PER_METER)
-#define COVER_RANGE ROB_VIEW_RANGE //int(ROB_RADIUS) //How close the robot should circle the cells.
+#define COVER_RANGE ROB_VIEW_RANGE //How close the robot should circle the cells.
 #define MAX_CUPS 20
 
 //Forward declare structs and classes

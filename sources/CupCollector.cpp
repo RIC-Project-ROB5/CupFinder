@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <algorithm>
+#include <cmath>
 
 using namespace std;
 using namespace rw::sensor;
@@ -260,10 +261,12 @@ std::vector<point> CupCollector::SearchGraph(Waypoint &wp)
             assert(c == nullptr || c->searched);
         }
     }
+    #ifndef NDEBUG
     bool fail = false;
     for(size_t i = 1; i < walkpath.size(); i++)
         if(!walkpath[i].isNeighbour(walkpath[i - 1])){ fail = true; std::cout << i << std::endl;}
     if(fail) for(auto &p : walkpath) std::cout << p << std::endl;
+    #endif
     for(size_t i = 1; i < walkpath.size(); i++)
         assert(walkpath[i].isNeighbour(walkpath[i - 1]));
     return walkpath;
@@ -309,7 +312,7 @@ std::vector<point> CupCollector::GetCup(point &p_start, point &p_cup)
 
     auto ret_vec = cup_path;
     //go back
-    cup_path.pop_back();
+    if(cup_path.size()) cup_path.pop_back();
     ret_vec.insert(ret_vec.end(), cup_path.rbegin(), cup_path.rend());
     //if we have more than max_cups, drop them of in dropoff
     if(current_cups >= MAX_CUPS)
@@ -375,11 +378,29 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
     {
         //std::cout << i << std::endl;
         //std::cout << this_cell.upper_left << " " << this_cell.lower_right << std::endl;
+        //Make the cell smaller according to COVER_RANGE
+        if(i == 0)
+        {
+            this_cell.upper_left = point(min(this_cell.upper_left.x + max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.lower_right.x),
+                                         min(this_cell.upper_left.y + max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.lower_right.y));
+            this_cell.lower_right = point(max(this_cell.lower_right.x - max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.upper_left.x),
+                                          max(this_cell.lower_right.y - max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.upper_left.y));
+        }
+        else
+        {
+            this_cell.upper_left = point(min(this_cell.upper_left.x + max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.lower_right.x),
+                                         min(this_cell.upper_left.y + max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.lower_right.y));
+            this_cell.lower_right = point(max(this_cell.lower_right.x - max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.upper_left.x),
+                                          max(this_cell.lower_right.y - max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.upper_left.y));
+        }
+        this_cell.upper_right = {this_cell.lower_right.x, this_cell.upper_left.y};
+        this_cell.lower_left = {this_cell.upper_left.x, this_cell.lower_right.y};
+
         if(i == 0) //first time, go from startpoint to first corner
         {
             vector2D line(startpoint.coord, this_cell.upper_left);
             auto v = SearchLine(line, ROB_VIEW_RANGE);
-            ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+            add_paths(ret_vec, v);
             for(size_t j = 1; j < ret_vec.size(); j++)
                 assert(ret_vec[j].isNeighbour(ret_vec[j - 1]));
 
@@ -389,7 +410,7 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
             assert(ret_vec.size());
             vector2D line(ret_vec.back(), this_cell.upper_left);
             auto v = SearchLine(line, ROB_VIEW_RANGE);
-            ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+            add_paths(ret_vec, v);
             for(size_t j = 1; j < ret_vec.size(); j++)
                 assert(ret_vec[j].isNeighbour(ret_vec[j - 1]));
 
@@ -399,7 +420,7 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
         {
             vector2D line(ret_vec.back(), this_cell.upper_left);
             auto v = SearchLine(line, ROB_VIEW_RANGE);
-            ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+            add_paths(ret_vec, v);
         }
         assert(ret_vec.size() == 0 || ret_vec.back() == this_cell.upper_left);
         vector2D line1(this_cell.upper_left, this_cell.upper_right);
@@ -408,24 +429,18 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
         vector2D line4(this_cell.lower_left, this_cell.upper_left);
 
         auto v = SearchLine(line1, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+        add_paths(ret_vec, v);
         v = SearchLine(line2, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+        add_paths(ret_vec, v);
         v = SearchLine(line3, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+        add_paths(ret_vec, v);
         v = SearchLine(line4, ROB_VIEW_RANGE);
-        ret_vec.insert(ret_vec.end(), v.begin(), v.end());
+        add_paths(ret_vec, v);
+        //check if this is the last time we should cover the cell.
         continue_coverage = (this_cell.upper_left.x + COVER_RANGE <= this_cell.lower_right.x - COVER_RANGE) &&
                             (this_cell.upper_left.y + COVER_RANGE <= this_cell.lower_right.y - COVER_RANGE);
 
-        //Make the cell smaller according to COVER_RANGE
-        this_cell.upper_left = point(min(this_cell.upper_left.x + COVER_RANGE, this_cell.lower_right.x),
-                                     min(this_cell.upper_left.y + COVER_RANGE, this_cell.lower_right.y));
-        this_cell.lower_right = point(max(this_cell.lower_right.x - COVER_RANGE, this_cell.upper_left.x),
-                                      max(this_cell.lower_right.y - COVER_RANGE, this_cell.upper_left.y));
-        this_cell.upper_right = {this_cell.lower_right.x, this_cell.upper_left.y};
-        this_cell.lower_left = {this_cell.upper_left.x, this_cell.lower_right.y};
-        //check if this is the last time we should cover the cell.
+
     }
 
     vector2D line(startpoint.coord, endpoint.coord);
@@ -447,7 +462,7 @@ std::vector<point> CupCollector::SearchLine(vector2D const &line, float distance
     point cur = line.getStartPoint();
     auto s = SearchForCups(cur, distance);
     searchvec.insert(searchvec.end(), s.begin(), s.end());
-    if(s.size()) searchvec.push_back(cur);
+    if(s.size() && s.back() != cur) searchvec.push_back(cur);
     for(size_t i = 1; i < searchvec.size(); i++)
         assert(searchvec[i].isNeighbour(searchvec[i - 1]));
 
