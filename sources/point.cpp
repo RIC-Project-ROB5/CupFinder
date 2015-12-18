@@ -3,7 +3,9 @@
 
 float point::GetDistance(const point &p) const
 {
-  return sqrt( pow(this->x - p.x, 2) + pow(this->y - p.y, 2) );
+    auto x_dif = this->x - p.x;
+    auto y_dif = this->y - p.y;
+    return sqrt(x_dif * x_dif + y_dif * y_dif);
 }
 
 float point::GetDistance(const point p1, const point p2)
