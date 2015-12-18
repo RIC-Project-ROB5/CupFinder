@@ -169,7 +169,7 @@ bool CupCollector::validateMap()
 }
 
 bool CupCollector::isGraphConnected()
-{//In this function we traverse the entire graph. We do this by using a first Search
+{//In this function we traverse the entire graph. We do this by using a depth first Search
     //Mark all waypoints as unvisited
     for(auto &wp : wayPoints)
         wp.visited = false;
