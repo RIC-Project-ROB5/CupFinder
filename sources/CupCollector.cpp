@@ -363,14 +363,66 @@ std::vector<point> CupCollector::SearchForCups(point &p, float distance)
     return ret_vec;
 }
 
+void CupCollector::minimise_cell(Cell &c)
+{//Make the cell smaler by checking all around it if it's edges have been searched.
+    bool shrinked = true;
+    while(shrinked)
+    {
+        shrinked = false;
+        //check top
+        bool allsearched = true;
+        for(int x = c.upper_left.x - ROB_RADIUS; x <= c.lower_right.x + ROB_RADIUS; x++)
+            if(!IsOutsideMap(point(x, c.upper_left.y)))
+                if(searchmap[x][c.upper_left.y] != searched) allsearched = false;
+        if(allsearched == true && c.upper_left.y < c.lower_right.y)
+        {
+            c.upper_left.y++;
+            shrinked = true;
+        }
+        //check bottom
+        allsearched = true;
+        for(int x = c.upper_left.x - ROB_RADIUS; x <= c.lower_right.x + ROB_RADIUS; x++)
+            if(!IsOutsideMap(point(x, c.lower_right.y)))
+                if(searchmap[x][c.lower_right.y] != searched) allsearched = false;
+        if(allsearched == true && c.upper_left.y < c.lower_right.y)
+        {
+            c.lower_right.y--;
+            shrinked = true;
+        }
+        //check left
+        allsearched = true;
+        for(int y = c.upper_left.y - ROB_RADIUS; y <= c.lower_right.y + ROB_RADIUS; y++)
+            if(!IsOutsideMap(point(c.upper_left.x, y)))
+                if(searchmap[c.upper_left.x][y] != searched) allsearched = false;
+        if(allsearched == true && c.upper_left.x < c.lower_right.x)
+        {
+            c.upper_left.x++;
+            shrinked = true;
+        }
+        //check right
+        allsearched = true;
+        for(int y = c.upper_left.y - ROB_RADIUS; y <= c.lower_right.y + ROB_RADIUS; y++)
+            if(!IsOutsideMap(point(c.lower_right.x, y)))
+                if(searchmap[c.lower_right.x][y] != searched) allsearched = false;
+        if(allsearched == true && c.upper_left.x < c.lower_right.x)
+        {
+            c.lower_right.x--;
+            shrinked = true;
+        }
+    }
+    c.upper_right = {c.lower_right.x, c.upper_left.y};
+    c.lower_left = {c.upper_left.x, c.lower_right.y};
+}
+
 std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Waypoint &endpoint, const Cell &cell)
 {
     //Searches the given cell for cups, collects them, return them to dropoff
     //Start at startpoint and exit at endpoint.
     //The cell is covered in a shrinking spiraling pattern.
     std::vector<point> ret_vec;
-    //Make a copy of the cell
+    //Minimise the cell so we don't search allready searched areas, and make a copy
     Cell this_cell = cell;
+    minimise_cell(this_cell);
     //in turns, go to each corner, search allong the way, make them smaller(to cirkel invard).
     //Stop and go to end when the corners are closer than COVER_RANGE fom each other.
     bool continue_coverage = true;
@@ -379,22 +431,8 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
         //std::cout << i << std::endl;
         //std::cout << this_cell.upper_left << " " << this_cell.lower_right << std::endl;
         //Make the cell smaller according to COVER_RANGE
-        if(i == 0)
-        {
-            this_cell.upper_left = point(min(this_cell.upper_left.x + max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.lower_right.x),
-                                         min(this_cell.upper_left.y + max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.lower_right.y));
-            this_cell.lower_right = point(max(this_cell.lower_right.x - max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.upper_left.x),
-                                          max(this_cell.lower_right.y - max(0, int((COVER_RANGE - ROB_RADIUS) / sqrt(2)) - 1), this_cell.upper_left.y));
-        }
-        else
-        {
-            this_cell.upper_left = point(min(this_cell.upper_left.x + max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.lower_right.x),
-                                         min(this_cell.upper_left.y + max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.lower_right.y));
-            this_cell.lower_right = point(max(this_cell.lower_right.x - max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.upper_left.x),
-                                          max(this_cell.lower_right.y - max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.upper_left.y));
-        }
-        this_cell.upper_right = {this_cell.lower_right.x, this_cell.upper_left.y};
-        this_cell.lower_left = {this_cell.upper_left.x, this_cell.lower_right.y};
+        continue_coverage = (this_cell.upper_left.x + COVER_RANGE <= this_cell.lower_right.x - COVER_RANGE) &&
+                            (this_cell.upper_left.y + COVER_RANGE <= this_cell.lower_right.y - COVER_RANGE);
 
         if(i == 0) //first time, go from startpoint to first corner
         {
@@ -437,10 +475,13 @@ std::vector<point> CupCollector::SearchCell(const Waypoint &startpoint, const Wa
         v = SearchLine(line4, ROB_VIEW_RANGE);
         add_paths(ret_vec, v);
         //check if this is the last time we should cover the cell.
-        continue_coverage = (this_cell.upper_left.x + COVER_RANGE <= this_cell.lower_right.x - COVER_RANGE) &&
-                            (this_cell.upper_left.y + COVER_RANGE <= this_cell.lower_right.y - COVER_RANGE);
+        this_cell.upper_left = point(min(this_cell.upper_left.x + max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.lower_right.x),
+                                     min(this_cell.upper_left.y + max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.lower_right.y));
+        this_cell.lower_right = point(max(this_cell.lower_right.x - max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.upper_left.x),
+                                      max(this_cell.lower_right.y - max(1, int(COVER_RANGE + COVER_RANGE / sqrt(2))), this_cell.upper_left.y));
 
-
+        this_cell.upper_right = {this_cell.lower_right.x, this_cell.upper_left.y};
+        this_cell.lower_left = {this_cell.upper_left.x, this_cell.lower_right.y};
     }
 
     vector2D line(startpoint.coord, endpoint.coord);

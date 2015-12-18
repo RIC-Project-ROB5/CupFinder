@@ -17,6 +17,7 @@
 #define COVER_RANGE ROB_VIEW_RANGE //How close the robot should circle the cells.
 #define MAX_CUPS 20
 
+
 //Forward declare structs and classes
 struct Cell;
 struct Waypoint_connection;
@@ -94,6 +95,7 @@ class CupCollector
         std::vector<point> SearchForCups(point &p, float distance);
         std::vector<point> SearchLine(vector2D const &line, float distance);
         void add_paths(std::vector<point> &v1, std::vector<point> &v2);
+        void minimise_cell(Cell &c);
 
     public: //public functions
         std::vector<point> get_path(); //Gives the path for cup collecting.
